@@ -70,6 +70,7 @@ const draft_1 = {
     content: "Test stream message",
 };
 const draft_2 = {
+    pm_recipient_ids: [1],
     private_message_recipient: "aaron@zulip.com",
     reply_to: "aaron@zulip.com",
     type: "private",
@@ -167,6 +168,8 @@ test("snapshot_message", ({override_rewire}) => {
         compose_state.topic(curr_draft.topic);
         compose_state.private_message_recipient(curr_draft.private_message_recipient);
     }
+
+    compose_pm_pill.get_user_ids = () => [1];
 
     curr_draft = draft_1;
     set_compose_state();
