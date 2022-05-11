@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import tempfile
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+# check for the venv
+from tools.lib import sanity_check
+
+sanity_check.check_venv(__file__)
+
+os.environ["DJANGO_SETTINGS_MODULE"] = "zproject.settings"
+
+import django
+
+django.setup()
+
+from tools.lib.help_docs_index import remove_tags, render_html
+
+if __name__ == "__main__":
+    # help center directory
+    directory = "templates/zerver/help"
+
+    # temp directory for text files
+    temp_dir = tempfile.TemporaryDirectory()
+    destination = temp_dir.name
+
+    # iterate over files in help center directory
+    # writing new text files to temp directory
+    for md_filename in os.listdir(directory):
+        f = os.path.join(directory, md_filename)
+        # checking if it is a file
+        if os.path.isfile(f):
+            html = render_html(f)
+            content = remove_tags(html)
+
+            # if md_filename == "configure-who-can-create-streams.md":
+            #     print(md_filename)
+            #     print("----------")
+            #     print(content)
+            #     print("----------")
+
+            txt_filename = os.path.basename(md_filename).split(".")[0] + ".txt"
+
+            temp_path = os.path.join(destination, txt_filename)
+            with open(temp_path, "w") as temp_f:
+                temp_f.write(content)
+                temp_f.seek(0)
+
+    # iterate over temp text files to create index
+    for file in os.listdir(destination):
+        print(file)
+        # Use node.js script to create and save the index?
+        # FlexSearch
+
+
+sys.exit(0)

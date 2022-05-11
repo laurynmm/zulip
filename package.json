@@ -38,6 +38,7 @@
     "error-stack-parser": "^2.0.2",
     "expose-loader": "^4.0.0",
     "flatpickr": "^4.5.7",
+    "flexsearch": "^0.7.0",
     "font-awesome": "^4.7.0",
     "font-subset-loader2": "^1.1.7",
     "ga-gtag": "^1.0.1",
