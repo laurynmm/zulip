@@ -525,6 +525,9 @@ export function update_topics_of_deleted_message_ids(message_ids) {
     for (const [stream_id, topic] of topics_to_rerender.values()) {
         topics.delete(get_topic_key(stream_id, topic));
         const msgs = message_util.get_messages_in_topic(stream_id, topic);
+        if (msgs.length === 0) {
+            complete_rerender();
+        }
         process_messages(msgs);
     }
 }
