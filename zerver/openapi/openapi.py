@@ -542,6 +542,38 @@ SKIP_JSON = {
     ("/fetch_api_key", "post"),
 }
 
+# def _get_security_value(validator, scheme_name, request):
+#     security_schemes = validator.spec / 'components#securitySchemes'
+#     if scheme_name not in security_schemes:
+#         return
+#     scheme = security_schemes[scheme_name]
+#     from openapi_core.security.factories import SecurityProviderFactory
+#     security_provider_factory = SecurityProviderFactory()
+#     security_provider = security_provider_factory.create(scheme)
+#     return security_provider(request)
+
+
+# def _get_security(validator, request):
+#     security = None
+#     if 'security' in validator.spec:
+#         security = validator.spec / 'security'
+
+#     if not security:
+#         return {}
+
+#     for security_requirement in security:
+#         try:
+#             return {
+#                 scheme_name: _get_security_value(validator,
+#                     scheme_name, request)
+#                 for scheme_name in security_requirement.keys()
+#             }
+#         except Exception as e:
+#             print(e)
+#             continue
+
+#     raise Exception("Woooooops")
+
 
 def validate_request(
     url: str,
