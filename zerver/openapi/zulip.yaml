@@ -1558,6 +1558,11 @@ paths:
                               description: |
                                 Event sent to all users in a Zulip organization when the
                                 status of a user changes.
+
+                                **Changes**: Prior to Zulip 7.0 (feature level TBD), this event
+                                included an `away` field with a boolean value. It was deprecated
+                                in Zulip 6.0 (feature level 148) as a legacy way to access the
+                                user's `presence_enabled` setting, with `away=!presence_enabled`.
                               properties:
                                 id:
                                   $ref: "#/components/schemas/EventIdSchema"
@@ -1566,16 +1571,6 @@ paths:
                                     - $ref: "#/components/schemas/EventTypeSchema"
                                     - enum:
                                         - user_status
-                                away:
-                                  type: boolean
-                                  deprecated: true
-                                  description: |
-                                    Whether the user has marked themself "away" with this status.
-
-                                    **Changes**: Deprecated in Zulip 6.0 (feature level 148);
-                                    starting with that feature level, `away` is a legacy way to
-                                    access the user's `presence_enabled` setting, with
-                                    `away = !presence_enabled`. To be removed in a future release.
                                 status_text:
                                   type: string
                                   description: |
@@ -1621,7 +1616,6 @@ paths:
                                 {
                                   "type": "user_status",
                                   "user_id": 10,
-                                  "away": true,
                                   "status_text": "out to lunch",
                                   "emoji_name": "car",
                                   "emoji_code": "1f697",
@@ -7486,7 +7480,12 @@ paths:
         Clients that wish to set the user's status to a specific value should
         pass all supported parameters.
 
-        **Changes**: In Zulip 5.0 (feature level 86), added support for
+        **Changes**: In Zulip 7.0 (feature level TBD), removed support
+        for `away` parameter, which had been deprecated in Zulip 6.0
+        (feature level 148) as a legacy way to access the user's
+        `presence_enabled` setting, with `away=!presence_enabled`.
+
+        In Zulip 5.0 (feature level 86), added support for
         `emoji_name`, `emoji_code`, and `reaction_type` parameters.
       parameters:
         - name: status_text
@@ -7500,20 +7499,6 @@ paths:
 
             **Note**: The limit on the size of the message is 60 characters.
           example: on vacation
-          required: false
-        - name: away
-          deprecated: true
-          schema:
-            type: boolean
-          in: query
-          description: |
-            Whether the user should be marked as "away".
-
-            **Changes**: Deprecated in Zulip 6.0 (feature level 148);
-            starting with that feature level, `away` is a legacy way to
-            access the user's `presence_enabled` setting, with
-            `away = !presence_enabled`. To be removed in a future release.
-          example: true
           required: false
         - name: emoji_name
           schema:
@@ -10818,7 +10803,11 @@ paths:
                           A dictionary which contains the [status](/help/status-and-availability)
                           of all users in the Zulip organization who have set a status.
 
-                          **Changes**: The emoji parameters are new in Zulip 5.0 (feature level 86).
+                          **Changes**: The `away` field was removed in Zulip 7.0
+                          (feature level TBD) and had previously been deprecated in Zulip
+                          6.0 (feature level 148).
+
+                          The emoji fields were added in Zulip 5.0 (feature level 86).
                           Previously, Zulip did not support emoji associated with statuses.
                         additionalProperties:
                           description: |
@@ -10827,16 +10816,6 @@ paths:
                           type: object
                           additionalProperties: false
                           properties:
-                            away:
-                              type: boolean
-                              deprecated: true
-                              description: |
-                                If present, the user has marked themself "away".
-
-                                **Changes**: Deprecated in Zulip 6.0 (feature level 148);
-                                starting with that feature level, `away` is a legacy way to
-                                access the user's `presence_enabled` setting, with
-                                `away = !presence_enabled`. To be removed in a future release.
                             status_text:
                               type: string
                               description: |

@@ -20,6 +20,13 @@ format used by the Zulip server that they are interacting with.
 
 ## Changes in Zulip 7.0
 
+**Feature level TBD**
+
+* [`POST /users/me/status`](/api/update-status),
+  [`POST /register`](/api/register-queue), [`GET /events`](/api/get-events):
+  Support for the user status `away` field/parameter, which had been deprecated
+  in Zulip 6.0 (feature level 148), has been removed.
+
 **Feature level 164**
 
 * [`POST /register`](/api/register-queue) Added the

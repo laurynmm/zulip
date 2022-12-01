@@ -69,7 +69,6 @@ def get_presence_backend(
 def update_user_status_backend(
     request: HttpRequest,
     user_profile: UserProfile,
-    away: Optional[bool] = REQ(json_validator=check_bool, default=None),
     status_text: Optional[str] = REQ(str_validator=check_capped_string(60), default=None),
     emoji_name: Optional[str] = REQ(default=None),
     emoji_code: Optional[str] = REQ(default=None),
@@ -81,7 +80,7 @@ def update_user_status_backend(
     if status_text is not None:
         status_text = status_text.strip()
 
-    if (away is None) and (status_text is None) and (emoji_name is None):
+    if (status_text is None) and (emoji_name is None):
         raise JsonableError(_("Client did not pass any new values."))
 
     if emoji_name == "":
@@ -118,7 +117,6 @@ def update_user_status_backend(
     assert client is not None
     do_update_user_status(
         user_profile=user_profile,
-        away=away,
         status_text=status_text,
         client_id=client.id,
         emoji_name=emoji_name,

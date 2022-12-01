@@ -1,7 +1,5 @@
 from typing import Any, Dict, List, Mapping
 
-import orjson
-
 from zerver.lib.test_classes import ZulipTestCase
 from zerver.lib.user_status import UserInfoDict, get_user_status_dict, update_user_status
 from zerver.models import UserProfile, UserStatus, get_client
@@ -166,27 +164,16 @@ class UserStatusTest(ZulipTestCase):
         result = self.client_post("/json/users/me/status", payload)
         self.assert_json_error(result, "status_text is too long (limit: 60 characters)")
 
-        # Set "away" with a normal length message.
         self.update_status_and_assert_event(
             payload=dict(
-                away=orjson.dumps(True).decode(),
                 status_text="on vacation",
             ),
-            expected_event=dict(
-                type="user_status", user_id=hamlet.id, away=True, status_text="on vacation"
-            ),
-            num_events=4,
+            expected_event=dict(type="user_status", user_id=hamlet.id, status_text="on vacation"),
         )
         self.assertEqual(
             user_status_info(hamlet),
-            dict(away=True, status_text="on vacation"),
+            dict(status_text="on vacation"),
         )
-
-        # Setting away is a deprecated way of accessing a user's presence_enabled
-        # setting. Can be removed when clients migrate "away" (also referred to as
-        # "unavailable") feature to directly use the presence_enabled setting.
-        user = UserProfile.objects.get(id=hamlet.id)
-        self.assertEqual(user.presence_enabled, False)
 
         # Server should fill emoji_code and reaction_type by emoji_name.
         self.update_status_and_assert_event(
@@ -204,7 +191,6 @@ class UserStatusTest(ZulipTestCase):
         self.assertEqual(
             user_status_info(hamlet),
             dict(
-                away=True,
                 status_text="on vacation",
                 emoji_name="car",
                 emoji_code="1f697",
@@ -227,25 +213,8 @@ class UserStatusTest(ZulipTestCase):
         )
         self.assertEqual(
             user_status_info(hamlet),
-            dict(away=True, status_text="on vacation"),
-        )
-
-        # Now revoke "away" status.
-        self.update_status_and_assert_event(
-            payload=dict(away=orjson.dumps(False).decode()),
-            expected_event=dict(type="user_status", user_id=hamlet.id, away=False),
-            num_events=4,
-        )
-        self.assertEqual(
-            user_status_info(hamlet),
             dict(status_text="on vacation"),
         )
-
-        # Setting away is a deprecated way of accessing a user's presence_enabled
-        # setting. Can be removed when clients migrate "away" (also referred to as
-        # "unavailable") feature to directly use the presence_enabled setting.
-        user = UserProfile.objects.get(id=hamlet.id)
-        self.assertEqual(user.presence_enabled, True)
 
         # And now just update your info.
         # The server will trim the whitespace here.
@@ -266,27 +235,4 @@ class UserStatusTest(ZulipTestCase):
         self.assertEqual(
             get_user_status_dict(realm_id=realm_id),
             {},
-        )
-
-        # Turn on "away" status again.
-        self.update_status_and_assert_event(
-            payload=dict(away=orjson.dumps(True).decode()),
-            expected_event=dict(type="user_status", user_id=hamlet.id, away=True),
-            num_events=4,
-        )
-
-        # Setting away is a deprecated way of accessing a user's presence_enabled
-        # setting. Can be removed when clients migrate "away" (also referred to as
-        # "unavailable") feature to directly use the presence_enabled setting.
-        user = UserProfile.objects.get(id=hamlet.id)
-        self.assertEqual(user.presence_enabled, False)
-
-        # And set status text while away.
-        self.update_status_and_assert_event(
-            payload=dict(status_text="   at the beach  "),
-            expected_event=dict(type="user_status", user_id=hamlet.id, status_text="at the beach"),
-        )
-        self.assertEqual(
-            user_status_info(hamlet),
-            dict(status_text="at the beach", away=True),
         )

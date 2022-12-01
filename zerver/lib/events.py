@@ -1328,7 +1328,6 @@ def apply_event(
     elif event["type"] == "user_status":
         user_id_str = str(event["user_id"])
         user_status = state["user_status"]
-        away = event.get("away")
         status_text = event.get("status_text")
         emoji_name = event.get("emoji_name")
         emoji_code = event.get("emoji_code")
@@ -1336,12 +1335,6 @@ def apply_event(
 
         if user_id_str not in user_status:
             user_status[user_id_str] = {}
-
-        if away is not None:
-            if away:
-                user_status[user_id_str]["away"] = True
-            else:
-                user_status[user_id_str].pop("away", None)
 
         if status_text is not None:
             if status_text == "":

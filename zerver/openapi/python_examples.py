@@ -230,10 +230,9 @@ def create_user(client: Client) -> None:
 @openapi_test_function("/users/me/status:post")
 def update_status(client: Client) -> None:
     # {code_example|start}
-    # The request contains the new status and away boolean
+    # The request contains the new status
     request = {
         "status_text": "on vacation",
-        "away": False,
         "emoji_name": "car",
         "emoji_code": "1f697",
         "reaction_type": "unicode_emoji",
@@ -247,7 +246,6 @@ def update_status(client: Client) -> None:
     # Test "status_text is too long error"
     request = {
         "status_text": "This is a message that exceeds 60 characters, and so should throw an error.",
-        "away": "false",
     }
     validate_against_openapi_schema(result, "/users/me/status", "post", "400")
 

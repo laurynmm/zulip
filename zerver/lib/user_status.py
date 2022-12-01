@@ -7,17 +7,14 @@ from zerver.models import UserStatus
 
 
 class UserInfoDict(TypedDict, total=False):
-    status: int
     status_text: str
     emoji_name: str
     emoji_code: str
     reaction_type: str
-    away: bool
 
 
 class RawUserInfoDict(TypedDict):
     user_profile_id: int
-    user_profile__presence_enabled: bool
     status_text: str
     emoji_name: str
     emoji_code: str
@@ -25,20 +22,12 @@ class RawUserInfoDict(TypedDict):
 
 
 def format_user_status(row: RawUserInfoDict) -> UserInfoDict:
-    # Deprecated way for clients to access the user's `presence_enabled`
-    # setting, with away != presence_enabled. Can be removed when clients
-    # migrate "away" (also referred to as "unavailable") feature to directly
-    # use and update the user's presence_enabled setting.
-    presence_enabled = row["user_profile__presence_enabled"]
-    away = not presence_enabled
     status_text = row["status_text"]
     emoji_name = row["emoji_name"]
     emoji_code = row["emoji_code"]
     reaction_type = row["reaction_type"]
 
     dct: UserInfoDict = {}
-    if away:
-        dct["away"] = away
     if status_text:
         dct["status_text"] = status_text
     if emoji_name:
@@ -56,15 +45,13 @@ def get_user_status_dict(realm_id: int) -> Dict[str, UserInfoDict]:
             user_profile__is_active=True,
         )
         .exclude(
-            Q(user_profile__presence_enabled=True)
-            & Q(status_text="")
+            Q(status_text="")
             & Q(emoji_name="")
             & Q(emoji_code="")
             & Q(reaction_type=UserStatus.UNICODE_EMOJI),
         )
         .values(
             "user_profile_id",
-            "user_profile__presence_enabled",
             "status_text",
             "emoji_name",
             "emoji_code",

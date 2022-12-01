@@ -1814,7 +1814,6 @@ user_status_event = event_dict_type(
     ],
     optional_keys=[
         # force vertical
-        ("away", bool),
         ("status_text", str),
         ("emoji_name", str),
         ("emoji_code", str),

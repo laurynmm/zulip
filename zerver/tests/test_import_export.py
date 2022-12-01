@@ -795,7 +795,6 @@ class RealmImportExportTest(ExportFile):
         # send Cordelia to the islands
         do_update_user_status(
             user_profile=cordelia,
-            away=True,
             status_text="in Hawaii",
             client_id=client.id,
             emoji_name="hawaii",
@@ -1745,7 +1744,6 @@ class SingleUserExportTest(ExportFile):
 
         do_update_user_status(
             user_profile=cordelia,
-            away=None,
             status_text="on vacation",
             client_id=client.id,
             emoji_name=None,
@@ -1755,7 +1753,6 @@ class SingleUserExportTest(ExportFile):
 
         do_update_user_status(
             user_profile=othello,
-            away=False,
             status_text="at my desk",
             client_id=client.id,
             emoji_name=None,

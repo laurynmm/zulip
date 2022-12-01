@@ -1178,100 +1178,49 @@ class NormalActionsTest(BaseAction):
         )
         check_alert_words("events[0]", events[0])
 
-    def test_away_events(self) -> None:
+    def test_user_status_events(self) -> None:
         client = get_client("website")
 
         # Set all
-        away_val = True
         events = self.verify_action(
             lambda: do_update_user_status(
                 user_profile=self.user_profile,
-                away=away_val,
                 status_text="out to lunch",
                 emoji_name="car",
                 emoji_code="1f697",
                 reaction_type=UserStatus.UNICODE_EMOJI,
                 client_id=client.id,
-            ),
-            num_events=4,
+            )
         )
 
         check_user_status(
             "events[0]",
             events[0],
-            {"away", "status_text", "emoji_name", "emoji_code", "reaction_type"},
-        )
-        check_user_settings_update("events[1]", events[1])
-        check_update_global_notifications("events[2]", events[2], not away_val)
-        check_presence(
-            "events[3]",
-            events[3],
-            has_email=True,
-            presence_key="website",
-            status="active" if not away_val else "idle",
+            {"status_text", "emoji_name", "emoji_code", "reaction_type"},
         )
 
         # Remove all
-        away_val = False
         events = self.verify_action(
             lambda: do_update_user_status(
                 user_profile=self.user_profile,
-                away=away_val,
                 status_text="",
                 emoji_name="",
                 emoji_code="",
                 reaction_type=UserStatus.UNICODE_EMOJI,
                 client_id=client.id,
-            ),
-            num_events=4,
+            )
         )
 
         check_user_status(
             "events[0]",
             events[0],
-            {"away", "status_text", "emoji_name", "emoji_code", "reaction_type"},
-        )
-        check_user_settings_update("events[1]", events[1])
-        check_update_global_notifications("events[2]", events[2], not away_val)
-        check_presence(
-            "events[3]",
-            events[3],
-            has_email=True,
-            presence_key="website",
-            status="active" if not away_val else "idle",
-        )
-
-        # Only set away
-        away_val = True
-        events = self.verify_action(
-            lambda: do_update_user_status(
-                user_profile=self.user_profile,
-                away=away_val,
-                status_text=None,
-                emoji_name=None,
-                emoji_code=None,
-                reaction_type=None,
-                client_id=client.id,
-            ),
-            num_events=4,
-        )
-
-        check_user_status("events[0]", events[0], {"away"})
-        check_user_settings_update("events[1]", events[1])
-        check_update_global_notifications("events[2]", events[2], not away_val)
-        check_presence(
-            "events[3]",
-            events[3],
-            has_email=True,
-            presence_key="website",
-            status="active" if not away_val else "idle",
+            {"status_text", "emoji_name", "emoji_code", "reaction_type"},
         )
 
         # Only set status_text
         events = self.verify_action(
             lambda: do_update_user_status(
                 user_profile=self.user_profile,
-                away=None,
                 status_text="at the beach",
                 emoji_name=None,
                 emoji_code=None,
