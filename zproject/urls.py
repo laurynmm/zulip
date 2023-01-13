@@ -134,6 +134,7 @@ from zerver.views.report import (
     report_send_times,
     report_unnarrow_times,
 )
+from zerver.views.robots import robots_txt
 from zerver.views.storage import get_storage, remove_storage, update_storage
 from zerver.views.streams import (
     add_default_stream,
@@ -617,6 +618,8 @@ i18n_urls = [
     path("integrations/doc-html/<integration_name>", integration_doc),
     path("integrations/", integrations_view),
     path("integrations/<path:path>", integrations_view),
+    # robots.txt file for search engine crawlers
+    path("robots.txt", robots_txt),
 ]
 
 # Make a copy of i18n_urls so that they appear without prefix for english

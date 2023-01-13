@@ -132,6 +132,14 @@ class PublicURLTest(ZulipTestCase):
                 response = self.client_get(url)
                 self.assert_in_success_response(["Configuration error"], response)
 
+    def test_robots_txt(self) -> None:
+        with self.settings(CORPORATE_ENABLED=True):
+            response = self.client_get("/robots.txt")
+            self.assert_in_success_response(["Disallow: /attribution/"], response)
+        with self.settings(CORPORATE_ENABLED=False):
+            response = self.client_get("/robots.txt")
+            self.assert_in_success_response(["Disallow: /", "Allow: /$"], response)
+
 
 class URLResolutionTest(ZulipTestCase):
     def check_function_exists(self, module_name: str, view: str) -> None:
