@@ -25,7 +25,6 @@ from analytics.views.activity_common import (
     realm_url_link,
     remote_installation_stats_link,
 )
-from analytics.views.support import get_plan_name
 from zerver.decorator import require_server_admin
 from zerver.lib.request import has_request_variables
 from zerver.lib.timestamp import timestamp_to_datetime
@@ -36,6 +35,7 @@ if settings.BILLING_ENABLED:
         estimate_annual_recurring_revenue_by_realm,
         get_realms_to_default_discount_dict,
     )
+    from corporate.lib.support import get_plan_name
 
 
 def get_realm_day_counts() -> Dict[str, Dict[str, Markup]]:

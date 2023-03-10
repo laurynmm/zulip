@@ -66,22 +66,13 @@ if settings.BILLING_ENABLED:
         update_sponsorship_status,
         void_all_open_invoices,
     )
+    from corporate.lib.support import get_plan_name
     from corporate.models import (
         Customer,
         CustomerPlan,
         get_current_plan_by_realm,
         get_customer_by_realm,
     )
-
-
-def get_plan_name(plan_type: int) -> str:
-    return {
-        Realm.PLAN_TYPE_SELF_HOSTED: "self-hosted",
-        Realm.PLAN_TYPE_LIMITED: "limited",
-        Realm.PLAN_TYPE_STANDARD: "standard",
-        Realm.PLAN_TYPE_STANDARD_FREE: "open source",
-        Realm.PLAN_TYPE_PLUS: "plus",
-    }[plan_type]
 
 
 def get_confirmations(

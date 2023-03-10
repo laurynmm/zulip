@@ -13,3 +13,13 @@ def get_support_url(realm: Realm) -> str:
         urlunsplit(("", "", reverse("support"), urlencode({"q": realm.string_id}), "")),
     )
     return support_url
+
+
+def get_plan_name(plan_type: int) -> str:
+    return {
+        Realm.PLAN_TYPE_SELF_HOSTED: "self-hosted",
+        Realm.PLAN_TYPE_LIMITED: "limited",
+        Realm.PLAN_TYPE_STANDARD: "standard",
+        Realm.PLAN_TYPE_STANDARD_FREE: "open source",
+        Realm.PLAN_TYPE_PLUS: "plus",
+    }[plan_type]
