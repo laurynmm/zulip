@@ -8,10 +8,14 @@ from django.db import transaction
 from django.utils.timezone import get_current_timezone_name as timezone_get_current_timezone_name
 from django.utils.timezone import now as timezone_now
 from django.utils.translation import gettext as _
+from django.utils.translation import override as override_language
 
 from confirmation.models import Confirmation, create_confirmation_link, generate_key
+from corporate.lib.support import get_realm_support_url
+from corporate.views.support import get_plan_type_string
 from zerver.actions.custom_profile_fields import do_remove_realm_custom_profile_fields
 from zerver.actions.message_delete import do_delete_messages_by_sender
+from zerver.actions.message_send import internal_send_stream_message
 from zerver.actions.user_groups import update_users_in_full_members_system_group
 from zerver.actions.user_settings import do_delete_avatar_image
 from zerver.lib.exceptions import JsonableError
@@ -19,10 +23,11 @@ from zerver.lib.message import parse_message_time_limit_setting, update_first_vi
 from zerver.lib.retention import move_messages_to_archive
 from zerver.lib.send_email import FromAddress, send_email, send_email_to_admins
 from zerver.lib.sessions import delete_realm_user_sessions
+from zerver.lib.streams import get_signups_stream
 from zerver.lib.timestamp import datetime_to_timestamp, timestamp_to_datetime
 from zerver.lib.timezone import canonicalize_timezone
 from zerver.lib.upload import delete_message_attachments
-from zerver.lib.user_counts import realm_user_count_by_role
+from zerver.lib.user_counts import realm_user_count, realm_user_count_by_role
 from zerver.lib.user_groups import (
     AnonymousSettingGroupDict,
     get_group_setting_value_for_api,
@@ -46,8 +51,8 @@ from zerver.models import (
     UserProfile,
 )
 from zerver.models.groups import SystemGroups
-from zerver.models.realms import get_realm
-from zerver.models.users import active_user_ids
+from zerver.models.realms import get_org_type_display_name, get_realm
+from zerver.models.users import active_user_ids, get_system_bot
 from zerver.tornado.django_api import send_event, send_event_on_commit
 
 if settings.BILLING_ENABLED:
@@ -774,6 +779,50 @@ def do_change_realm_plan_type(
             "message_visibility_limit",
         ]
     )
+
+    # Send a notification to the admin realm when an organization changes it's plan type.
+    if settings.BILLING_ENABLED:
+        admin_realm = get_realm(settings.SYSTEM_BOT_REALM)
+        sender = get_system_bot(settings.NOTIFICATION_BOT, admin_realm.id)
+
+        user_count = realm_user_count(realm)
+
+        # When an organization is registered on Zulip Cloud the default plan type
+        # is changed from self-hosted to limited before the first user is registered.
+        # We only want to send this notification message for subsequent changes to
+        # the organization's plan type.
+        if user_count > 0:
+            support_url = get_realm_support_url(realm)
+            organization_type = get_org_type_display_name(realm.org_type)
+            old_plan_name = get_plan_type_string(old_value)
+            new_plan_name = get_plan_type_string(plan_type)
+
+            with override_language(admin_realm.default_language):
+                message = _(
+                    "[{realm_name}]({support_link}) ({type}) with {user_count} users has changed from {old_plan} to {new_plan}"
+                ).format(
+                    realm_name=realm.display_subdomain,
+                    support_link=support_url,
+                    type=organization_type,
+                    user_count=user_count,
+                    old_plan=old_plan_name,
+                    new_plan=new_plan_name,
+                )
+                topic = _("{realm}: plan change").format(realm=realm.display_subdomain)
+
+            try:
+                signups_stream = get_signups_stream(admin_realm)
+
+                internal_send_stream_message(
+                    sender,
+                    signups_stream,
+                    topic,
+                    message,
+                )
+            except Stream.DoesNotExist:  # nocoverage
+                # If the signups stream hasn't been created in the admin
+                # realm, don't auto-create it to send to it; just do nothing.
+                pass
 
     event = {
         "type": "realm",
