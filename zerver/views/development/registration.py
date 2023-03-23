@@ -63,7 +63,8 @@ def register_development_realm(request: HttpRequest) -> HttpResponse:
     count = UserProfile.objects.count()
     name = f"user-{count}"
     email = f"{name}@zulip.com"
-    realm_name = f"realm-{count}"
+    realm_name = f"Realm {count}"
+    realm_subdomain = f"realm-{count}"
     realm_type = Realm.ORG_TYPES["business"]["id"]
     realm_default_language = "en"
     realm_subdomain = realm_name

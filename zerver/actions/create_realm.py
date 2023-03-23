@@ -371,8 +371,9 @@ def do_create_realm(
 
     # Send a notification to the admin realm when a new organization registers.
     if settings.CORPORATE_ENABLED:
-        admin_realm = get_realm(settings.SYSTEM_BOT_REALM)
-        sender = get_system_bot(settings.NOTIFICATION_BOT, admin_realm.id)
+        admin_realm = get_realm(settings.STAFF_SUBDOMAIN)
+        bot_realm = get_realm(settings.SYSTEM_BOT_REALM)
+        sender = get_system_bot(settings.NOTIFICATION_BOT, bot_realm.id)
 
         support_url = get_realm_support_url(realm)
         organization_type = get_org_type_display_name(realm.org_type)

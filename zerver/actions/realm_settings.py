@@ -7,8 +7,6 @@ from django.conf import settings
 from django.db import transaction
 from django.utils.timezone import get_current_timezone_name as timezone_get_current_timezone_name
 from django.utils.timezone import now as timezone_now
-from django.utils.translation import gettext as _
-from django.utils.translation import override as override_language
 
 from confirmation.models import Confirmation, create_confirmation_link, generate_key
 from corporate.lib.support import get_realm_support_url
@@ -782,8 +780,9 @@ def do_change_realm_plan_type(
 
     # Send a notification to the admin realm when an organization changes it's plan type.
     if settings.BILLING_ENABLED:
-        admin_realm = get_realm(settings.SYSTEM_BOT_REALM)
-        sender = get_system_bot(settings.NOTIFICATION_BOT, admin_realm.id)
+        admin_realm = get_realm(settings.STAFF_SUBDOMAIN)
+        bot_realm = get_realm(settings.SYSTEM_BOT_REALM)
+        sender = get_system_bot(settings.NOTIFICATION_BOT, bot_realm.id)
 
         user_count = realm_user_count(realm)
 
@@ -797,18 +796,11 @@ def do_change_realm_plan_type(
             old_plan_name = get_plan_type_string(old_value)
             new_plan_name = get_plan_type_string(plan_type)
 
-            with override_language(admin_realm.default_language):
-                message = _(
-                    "[{realm_name}]({support_link}) ({type}) with {user_count} users has changed from {old_plan} to {new_plan}"
-                ).format(
-                    realm_name=realm.display_subdomain,
-                    support_link=support_url,
-                    type=organization_type,
-                    user_count=user_count,
-                    old_plan=old_plan_name,
-                    new_plan=new_plan_name,
-                )
-                topic = _("{realm}: plan change").format(realm=realm.display_subdomain)
+            message = (
+                f"[{realm.name}]({support_url}) ({organization_type}) with {user_count} users "
+                f"has changed from {old_plan_name} to {new_plan_name}"
+            )
+            topic = f"{realm.name}: plan change"
 
             try:
                 signups_stream = get_signups_stream(admin_realm)
