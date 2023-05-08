@@ -419,16 +419,25 @@ export function initialize() {
     // RECIPIENT BARS
 
     function get_row_id_for_narrowing(narrow_link_elem) {
-        const $group = rows.get_closest_group(narrow_link_elem);
-        const msg_id = rows.id_for_recipient_row($group);
+        const $nearest_group = rows.get_closest_group(narrow_link_elem);
+        const nearest_group_id = $nearest_group.attr("id");
 
-        assert(message_lists.current !== undefined);
-        const nearest = message_lists.current.get(msg_id);
-        const selected = message_lists.current.selected_message();
-        if (util.same_recipient(nearest, selected)) {
-            return selected.id;
+        const $selected_row = message_lists.current.selected_row();
+        const $selected_group = rows.get_message_recipient_row($selected_row);
+        const selected_group_id = $selected_group.attr("id");
+
+        if (nearest_group_id === selected_group_id) {
+            // If the recipient bar is the same for the selected message,
+            // then keep the currently selected message in the new narrow.
+            const selected_message = message_lists.current.selected_message();
+            return selected_message.id;
         }
-        return nearest.id;
+
+        // Otherwise, update the selected message in the new narrow to be
+        // the message nearest to the recipient bar.
+        const msg_id = rows.id_for_recipient_row($nearest_group);
+        const nearest_message = message_lists.current.get(msg_id);
+        return nearest_message.id;
     }
 
     $("#message_feed_container").on("click", ".narrows_by_recipient", function (e) {
