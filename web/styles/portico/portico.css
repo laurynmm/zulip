@@ -468,7 +468,8 @@ input.text-error {
                     transition: none;
                 }
 
-                & a {
+                & a,
+                & button {
                     display: block;
                     margin: 2px 0;
                     padding: 0;
@@ -478,11 +479,19 @@ input.text-error {
                     color: hsl(0deg 0% 27%);
                 }
 
-                &:hover a {
+                & button {
+                    background-color: inherit;
+                    border: none;
+                    font-family: inherit;
+                }
+
+                &:hover a,
+                &:hover button {
                     background-color: transparent;
                 }
 
-                & a i {
+                & a i,
+                & button i {
                     margin-right: 5px;
                 }
 
