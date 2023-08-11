@@ -115,4 +115,5 @@
 #### Specialty endpoints
 
 * [Fetch an API key (production)](/api/fetch-api-key)
+* [Fetch an API key (JSON web token)](/api/jwt-fetch-api-key)
 * [Fetch an API key (development only)](/api/dev-fetch-api-key)
