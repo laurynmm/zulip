@@ -259,7 +259,15 @@ class OpenAPIArgumentsTest(ZulipTestCase):
         "/rest-error-handling",
         # Zulip outgoing webhook payload
         "/zulip-outgoing-webhook",
-        "/jwt/fetch_api_key",
+    }
+
+    # Endpoints that are documented in the API documentation,
+    # but are not processed via rest_dispatch and only support
+    # POST requests.
+    documented_post_only_endpoints = {
+        "fetch_api_key",
+        "dev_fetch_api_key",
+        "jwt/fetch_api_key",
     }
 
     # Endpoints in the API documentation that don't use rest_dispatch

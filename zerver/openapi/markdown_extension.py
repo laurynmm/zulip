@@ -300,7 +300,11 @@ def generate_curl_example(
     curl_first_line_parts = ["curl", *curl_method_arguments(example_endpoint, method, api_url)]
     lines.append(shlex.join(curl_first_line_parts))
 
-    insecure_operations = ["/dev_fetch_api_key:post", "/fetch_api_key:post"]
+    insecure_operations = [
+        "/dev_fetch_api_key:post",
+        "/fetch_api_key:post",
+        "/jwt/fetch_api_key:post",
+    ]
     if operation_security is None:
         if global_security == [{"basicAuth": []}]:
             authentication_required = True
