@@ -143,6 +143,91 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiKeyResponse"
+  /jwt/fetch_api_key:
+    post:
+      operationId: jwt-fetch-api-key
+      summary: Fetch an API key (JSON Web Token)
+      tags: ["authentication"]
+      description: |
+        This API endpoint is used by clients to implement JSON Web Token (JWT) authentication.
+        Given the user's Zulip login credentials, it returns a Zulip API key that the client
+        can use to make requests as the user.
+
+        !!! warn ""
+
+            **Note:** This endpoint is only useful for Zulip servers/organizations with
+            [JWT authentication][jwt-auth-docs] configured.
+
+        **Changes**: New in Zulip 7.0 (feature level 160).
+
+        [jwt-auth-docs]: https://zulip.readthedocs.io/en/latest/production/authentication-methods.html#jwt
+      parameters:
+        - name: token
+          in: query
+          description: |
+            The encoded JSON Web Token for the user that owns the API key.
+          schema:
+            type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzb21lIjoicGF5bG9hZCJ9.4twFt5NiznN84AWoo1d7KO1T_yoc0Z6XOpOVswacPZg
+        - name: include_profile
+          in: query
+          description: |
+            Whether the user's profile information should be included in the response.
+          schema:
+            type: boolean
+          example: false
+      security: []
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/JsonSuccessBase"
+                  - required:
+                      - api_key
+                      - email
+                    additionalProperties: false
+                    properties:
+                      result: {}
+                      msg: {}
+                      ignored_parameters_unsupported: {}
+                      api_key:
+                        type: string
+                        description: |
+                          The API key that can be used to authenticate as the requested user.
+                      email:
+                        type: string
+                        description: |
+                          The email address of the user who owns the API key.
+                      user:
+                        $ref: "#/components/schemas/User"
+                    example:
+                      {
+                        "api_key": "gjA04ZYcqXKalvYMA8OeXSfzUOLrtbZv",
+                        "email": "iago@zulip.com",
+                        "msg": "",
+                        "result": "success",
+                        "user":
+                          {
+                            "avatar_url": "https://secure.gravatar.com/avatar/af4f06322c177ef4e1e9b2c424986b54?d=identicon&version=1",
+                            "avatar_version": 1,
+                            "email": "iago@zulip.com",
+                            "delivery_email": iago@zulip.com,
+                            "full_name": "Iago",
+                            "is_admin": true,
+                            "is_owner": false,
+                            "role": 200,
+                            "is_guest": false,
+                            "is_billing_admin": false,
+                            "is_bot": false,
+                            "is_active": true,
+                            "timezone": "",
+                            "date_joined": "2019-10-20T07:50:53.728864+00:00",
+                            "user_id": 5,
+                          },
+                      }
   /events:
     get:
       operationId: get-events
