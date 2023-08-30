@@ -268,8 +268,10 @@ def makeExtension(*args: Any, **kwargs: str) -> MarkdownArgumentsTableGenerator:
 def generate_data_type(schema: Mapping[str, Any]) -> str:
     data_type = ""
     if "oneOf" in schema:
+        print(schema.keys())
         for item in schema["oneOf"]:
             data_type = data_type + generate_data_type(item) + " | "
+        print(data_type)
         data_type = data_type[:-3]
     elif "items" in schema:
         data_type = "(" + generate_data_type(schema["items"]) + ")[]"

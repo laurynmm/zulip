@@ -187,35 +187,35 @@ class APIReturnValuesTablePreprocessor(Preprocessor):
 
     def render_events(self, events_dict: Dict[str, Any]) -> List[str]:
         text: List[str] = []
-        # Use argument section design for better visuals
         # Directly using `###` for subheading causes errors so use h3 with made up id.
-        argument_template = (
-            '<div class="api-argument"><p class="api-argument-name"><h3 id="{h3_id}">'
-            "{event_type} {op}</h3></p></div> \n{description}\n\n\n"
+        EVENT_TYPE_TEMPLATE = (
+            '<div class="api-event"><span class="api-event-name"><h3 id="{h3_id}">'
+            "{event_type} {op}</h3></span></div> \n{description}\n\n\n"
         )
-        for events in events_dict["oneOf"]:
-            event_type: Dict[str, Any] = events["properties"]["type"]
-            event_type_str: str = event_type["enum"][0]
+        for event in events_dict["oneOf"]:
+            event_type: str = event["properties"]["type"]["enum"][0]
             # Internal hyperlink name
-            h3_id: str = event_type_str
-            event_type_str = f'<span class="api-argument-required"> {event_type_str}</span>'
-            op: Optional[Dict[str, Any]] = events["properties"].pop("op", None)
+            h3_id: str = event_type
+            event_type_str = f'<span class="api-event-type">{event_type}</span>'
             op_str: str = ""
+            # "op" properties have no description, so they have to be removed
+            # before calling render_table on event["properties"].
+            op: Optional[Dict[str, Any]] = event["properties"].pop("op", None)
             if op is not None:
                 op_str = op["enum"][0]
                 h3_id += "-" + op_str
-                op_str = f'<span class="api-argument-deprecated">op: {op_str}</span>'
-            description = events["description"]
+                op_str = f'<span class="api-event-op">op: {op_str}</span>'
+            description = event["description"]
             text.append(
-                argument_template.format(
+                EVENT_TYPE_TEMPLATE.format(
                     event_type=event_type_str, op=op_str, description=description, h3_id=h3_id
                 )
             )
-            text += self.render_table(events["properties"], 0)
+            text += self.render_table(event["properties"], 0)
             # This part is for adding examples of individual events
             text.append("**Example**")
             text.append("\n```json\n")
-            example = json.dumps(events["example"], indent=4, sort_keys=True)
+            example = json.dumps(event["example"], indent=4, sort_keys=True)
             text.append(example)
             text.append("```\n\n")
         return text

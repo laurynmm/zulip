@@ -1305,8 +1305,8 @@ label.label-title {
     padding-right: 10px;
 }
 
-.api-argument {
-    .api-argument-name {
+.api-argument, .api-event {
+    .api-argument-name, api-event-name {
         font-family: "Source Code Pro", monospace;
 
         .api-argument-hover-link i.fa {
@@ -1331,7 +1331,7 @@ label.label-title {
         font-style: italic;
     }
 
-    .api-argument-required {
+    .api-argument-required, .api-event-type {
         text-transform: uppercase;
         font-weight: 600;
         font-size: 12px;
@@ -1345,7 +1345,7 @@ label.label-title {
         color: hsl(0deg 0% 47%);
     }
 
-    .api-argument-deprecated {
+    .api-argument-deprecated, .api-event-op {
         text-transform: uppercase;
         font-weight: 600;
         font-size: 12px;
