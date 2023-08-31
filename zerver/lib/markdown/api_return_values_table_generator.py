@@ -14,6 +14,14 @@ from .api_arguments_table_generator import generate_data_type
 
 REGEXP = re.compile(r"\{generate_return_values_table\|\s*(.+?)\s*\|\s*(.+)\s*\}")
 
+EVENT_TYPE_TEMPLATE = (
+    '<div id="{id}" class="api-argument"><p class="api-argument-name">'
+    '<span class="api-argument-required">{event_type}</span> {op}'
+    '<a href="#{id}" class="api-argument-hover-link"><i class="fa fa-chain"></i></a></p></div> '
+    "\n{description}\n\n\n"
+)
+OP_PROPERTY_TEMPLATE = '<span class="api-argument-deprecated">op: {op}</span> '
+
 
 class MarkdownReturnValuesTableGenerator(Extension):
     def extendMarkdown(self, md: markdown.Markdown) -> None:
@@ -187,37 +195,33 @@ class APIReturnValuesTablePreprocessor(Preprocessor):
 
     def render_events(self, events_dict: Dict[str, Any]) -> List[str]:
         text: List[str] = []
-        # Use argument section design for better visuals
-        # Directly using `###` for subheading causes errors so use h3 with made up id.
-        argument_template = (
-            '<div class="api-argument"><p class="api-argument-name"><h3 id="{h3_id}">'
-            "{event_type} {op}</h3></p></div> \n{description}\n\n\n"
-        )
-        for events in events_dict["oneOf"]:
-            event_type: Dict[str, Any] = events["properties"]["type"]
-            event_type_str: str = event_type["enum"][0]
-            # Internal hyperlink name
-            h3_id: str = event_type_str
-            event_type_str = f'<span class="api-argument-required"> {event_type_str}</span>'
-            op: Optional[Dict[str, Any]] = events["properties"].pop("op", None)
-            op_str: str = ""
+
+        for event in events_dict["oneOf"]:
+            event_type: str = event["properties"]["type"]["enum"][0]
+            link_id: str = event_type
+            description: str = event["description"]
+            example: str = json.dumps(event["example"], indent=4, sort_keys=True)
+
+            # `op` properties do not have descriptions, and therefore must
+            # be removed before render_tabe(event["properties"]) is called.
+            op: Optional[Dict[str, Any]] = event["properties"].pop("op", None)
+            op_formatted: str = ""
             if op is not None:
                 op_str = op["enum"][0]
-                h3_id += "-" + op_str
-                op_str = f'<span class="api-argument-deprecated">op: {op_str}</span>'
-            description = events["description"]
+                op_formatted = OP_PROPERTY_TEMPLATE.format(op=op_str)
+                link_id += "-" + op_str
+
             text.append(
-                argument_template.format(
-                    event_type=event_type_str, op=op_str, description=description, h3_id=h3_id
+                EVENT_TYPE_TEMPLATE.format(
+                    event_type=event_type, op=op_formatted, description=description, id=link_id
                 )
             )
-            text += self.render_table(events["properties"], 0)
-            # This part is for adding examples of individual events
+            text += self.render_table(event["properties"], 0)
             text.append("**Example**")
             text.append("\n```json\n")
-            example = json.dumps(events["example"], indent=4, sort_keys=True)
             text.append(example)
             text.append("```\n\n")
+            text.append("<hr>")
         return text
 
 
