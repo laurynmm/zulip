@@ -15,7 +15,11 @@ from zerver.actions.invites import (
     do_revoke_user_invite,
 )
 from zerver.decorator import require_member_or_admin
-from zerver.lib.exceptions import JsonableError, OrganizationOwnerRequiredError
+from zerver.lib.exceptions import (
+    JsonableError,
+    OrganizationAdministratorRequiredError,
+    OrganizationOwnerRequiredError,
+)
 from zerver.lib.request import REQ, has_request_variables
 from zerver.lib.response import json_success
 from zerver.lib.streams import access_stream_by_id
@@ -39,7 +43,7 @@ def check_role_based_permissions(
         raise OrganizationOwnerRequiredError
 
     if require_admin and not user_profile.is_realm_admin:
-        raise JsonableError(_("Must be an organization administrator"))
+        raise OrganizationAdministratorRequiredError
 
 
 @require_member_or_admin
