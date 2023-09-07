@@ -20,6 +20,15 @@ format used by the Zulip server that they are interacting with.
 
 ## Changes in Zulip 9.0
 
+**Feature level 271**
+
+* `POST /invites`, `POST /invites/{invite_id}/resend`,
+  `DELETE /invites/{invite_id}`: These endpoints now return
+  `code: UNAUTHORIZED_PRINCIPAL` in the error response if the request
+  requires admin privileges and the requesting user is not an
+  organization administrator. Previously, `code: BAD_REQUEST` was
+  returned for these error responses.
+
 **Feature level 270**
 
 * `PATCH /realm`, [`POST /register`](/api/register-queue),
