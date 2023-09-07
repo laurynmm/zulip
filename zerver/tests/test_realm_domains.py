@@ -36,11 +36,11 @@ class RealmDomainTest(ZulipTestCase):
     def test_not_realm_owner(self) -> None:
         self.login("iago")
         result = self.client_post("/json/realm/domains")
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
         result = self.client_patch("/json/realm/domains/15")
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
         result = self.client_delete("/json/realm/domains/15")
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
     def test_create_realm_domain(self) -> None:
         self.login("desdemona")

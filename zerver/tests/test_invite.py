@@ -664,7 +664,7 @@ class InviteUserTest(InviteUserBase):
         response = self.invite(
             invitee, ["Denmark"], invite_as=PreregistrationUser.INVITE_AS["REALM_OWNER"]
         )
-        self.assert_json_error(response, "Must be an organization owner")
+        self.assert_json_error(response, "Must be an organization owner", status_code=403)
 
     def test_successful_invite_user_as_admin_from_admin_account(self) -> None:
         self.login("iago")
@@ -688,7 +688,7 @@ class InviteUserTest(InviteUserBase):
         response = self.invite(
             invitee, ["Denmark"], invite_as=PreregistrationUser.INVITE_AS["REALM_ADMIN"]
         )
-        self.assert_json_error(response, "Must be an organization administrator")
+        self.assert_json_error(response, "Must be an organization administrator", status_code=403)
 
     def test_successful_invite_user_as_moderator_from_admin_account(self) -> None:
         self.login("iago")
@@ -712,7 +712,7 @@ class InviteUserTest(InviteUserBase):
         response = self.invite(
             invitee, ["Denmark"], invite_as=PreregistrationUser.INVITE_AS["MODERATOR"]
         )
-        self.assert_json_error(response, "Must be an organization administrator")
+        self.assert_json_error(response, "Must be an organization administrator", status_code=403)
 
     def test_invite_user_as_moderator_from_moderator_account(self) -> None:
         self.login("shiva")
@@ -720,7 +720,7 @@ class InviteUserTest(InviteUserBase):
         response = self.invite(
             invitee, ["Denmark"], invite_as=PreregistrationUser.INVITE_AS["MODERATOR"]
         )
-        self.assert_json_error(response, "Must be an organization administrator")
+        self.assert_json_error(response, "Must be an organization administrator", status_code=403)
 
     def test_invite_user_as_invalid_type(self) -> None:
         """
@@ -2072,7 +2072,7 @@ class InvitationsTestCase(InviteUserBase):
         result = self.api_delete(
             self.example_user("othello"), "/api/v1/invites/" + str(prereg_user.id)
         )
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
         # Verify that the scheduled email still exists.
         prereg_user = PreregistrationUser.objects.get(email=invitee, referred_by=user_profile)
@@ -2106,7 +2106,7 @@ class InvitationsTestCase(InviteUserBase):
         result = self.api_delete(
             self.example_user("iago"), "/api/v1/invites/" + str(prereg_user.id)
         )
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         result = self.api_delete(owner, "/api/v1/invites/" + str(prereg_user.id))
         self.assert_json_success(result)
@@ -2155,7 +2155,7 @@ class InvitationsTestCase(InviteUserBase):
             multiuse_invite, Confirmation.MULTIUSE_INVITE, validity_in_minutes=validity_in_minutes
         )
         error_result = self.client_delete("/json/invites/multiuse/" + str(multiuse_invite.id))
-        self.assert_json_error(error_result, "Must be an organization owner")
+        self.assert_json_error(error_result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         result = self.client_delete("/json/invites/multiuse/" + str(multiuse_invite.id))
@@ -2303,7 +2303,9 @@ class InvitationsTestCase(InviteUserBase):
         prereg_user_one.save()
         prereg_user = PreregistrationUser.objects.get(email=invitee)
         error_result = self.client_post("/json/invites/" + str(prereg_user.id) + "/resend")
-        self.assert_json_error(error_result, "Must be an organization administrator")
+        self.assert_json_error(
+            error_result, "Must be an organization administrator", status_code=403
+        )
 
     def test_resend_owner_invitation(self) -> None:
         self.login("desdemona")
@@ -2325,7 +2327,7 @@ class InvitationsTestCase(InviteUserBase):
         self.login("iago")
         prereg_user = PreregistrationUser.objects.get(email=invitee)
         error_result = self.client_post("/json/invites/" + str(prereg_user.id) + "/resend")
-        self.assert_json_error(error_result, "Must be an organization owner")
+        self.assert_json_error(error_result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         with self.captureOnCommitCallbacks(execute=True):
@@ -2822,7 +2824,7 @@ class MultiuseInviteTest(ZulipTestCase):
             "/json/realm",
             {"create_multiuse_invite_group": orjson.dumps(full_members_system_group.id).decode()},
         )
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         result = self.client_patch(
@@ -2842,7 +2844,7 @@ class MultiuseInviteTest(ZulipTestCase):
                 "invite_expires_in_minutes": 2 * 24 * 60,
             },
         )
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         result = self.client_post(

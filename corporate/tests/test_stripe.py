@@ -4975,6 +4975,7 @@ class RequiresBillingAccessTest(StripeTestCase):
             url: str,
             method: str,
             data: Dict[str, Any],
+            status_code: int = 400,
         ) -> None:
             tested_endpoints.add(url)
             for user in users:
@@ -4990,7 +4991,7 @@ class RequiresBillingAccessTest(StripeTestCase):
                     data,
                     content_type="application/json",
                 )
-                self.assert_json_error_contains(result, error_message)
+                self.assert_json_error_contains(result, error_message, status_code)
 
         check_users_cant_access(
             [guest],
@@ -4998,6 +4999,7 @@ class RequiresBillingAccessTest(StripeTestCase):
             "/json/billing/upgrade",
             "POST",
             {},
+            403,
         )
 
         check_users_cant_access(
@@ -5006,6 +5008,7 @@ class RequiresBillingAccessTest(StripeTestCase):
             "/json/billing/sponsorship",
             "POST",
             {},
+            403,
         )
 
         check_users_cant_access(
@@ -5030,6 +5033,7 @@ class RequiresBillingAccessTest(StripeTestCase):
             "/json/upgrade/session/start_card_update_session",
             "POST",
             {},
+            403,
         )
 
         check_users_cant_access(
@@ -5038,6 +5042,7 @@ class RequiresBillingAccessTest(StripeTestCase):
             "/json/billing/event/status",
             "GET",
             {},
+            403,
         )
 
         # Make sure that we are testing all the JSON endpoints

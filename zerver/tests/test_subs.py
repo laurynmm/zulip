@@ -55,7 +55,7 @@ from zerver.lib.default_streams import (
     get_default_streams_for_realm_as_dicts,
 )
 from zerver.lib.email_mirror_helpers import encode_email_address_helper
-from zerver.lib.exceptions import JsonableError
+from zerver.lib.exceptions import JsonableError, OrganizationOwnerRequiredError
 from zerver.lib.message import UnreadStreamInfo, aggregate_unread_data, get_raw_unread_data
 from zerver.lib.response import json_success
 from zerver.lib.stream_color import STREAM_ASSIGNMENT_COLORS, pick_colors
@@ -726,7 +726,7 @@ class StreamAdminTest(ZulipTestCase):
         stream = self.subscribe(user_profile, "private_stream_2")
         result = self.client_patch(f"/json/streams/{stream.id}", params)
         self.assertTrue(stream.invite_only)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_make_stream_private(self) -> None:
         user_profile = self.example_user("hamlet")
@@ -796,7 +796,7 @@ class StreamAdminTest(ZulipTestCase):
         stream = self.subscribe(user_profile, "public_stream_2")
         result = self.client_patch(f"/json/streams/{stream.id}", params)
         self.assertFalse(stream.invite_only)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_create_web_public_stream(self) -> None:
         user_profile = self.example_user("hamlet")
@@ -973,7 +973,7 @@ class StreamAdminTest(ZulipTestCase):
             "history_public_to_subscribers": orjson.dumps(True).decode(),
         }
         result = self.client_patch(f"/json/streams/{stream_id}", params)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
         do_set_realm_property(
             realm,
@@ -1131,7 +1131,7 @@ class StreamAdminTest(ZulipTestCase):
             "is_default_stream": orjson.dumps(True).decode(),
         }
         result = self.client_patch(f"/json/streams/{stream_id}", params)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
         self.assertFalse(stream_id in get_default_stream_ids_for_realm(realm.id))
 
         do_change_user_role(user_profile, UserProfile.ROLE_REALM_ADMINISTRATOR, acting_user=None)
@@ -1589,7 +1589,7 @@ class StreamAdminTest(ZulipTestCase):
         stream = self.subscribe(user_profile, "new_stream")
 
         result = self.client_delete(f"/json/streams/{stream.id}")
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_private_stream_live_updates(self) -> None:
         user_profile = self.example_user("hamlet")
@@ -1754,7 +1754,7 @@ class StreamAdminTest(ZulipTestCase):
 
         stream_id = get_stream("stream_name1", user_profile.realm).id
         result = self.client_patch(f"/json/streams/{stream_id}", {"new_name": "stream_name2"})
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_notify_on_stream_rename(self) -> None:
         user_profile = self.example_user("hamlet")
@@ -1988,7 +1988,7 @@ class StreamAdminTest(ZulipTestCase):
         result = self.client_patch(
             f"/json/streams/{stream_id}", {"description": "Test description"}
         )
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_change_to_stream_post_policy_admins(self) -> None:
         user_profile = self.example_user("hamlet")
@@ -2044,7 +2044,7 @@ class StreamAdminTest(ZulipTestCase):
             result = self.client_patch(
                 f"/json/streams/{stream_id}", {"stream_post_policy": orjson.dumps(policy).decode()}
             )
-            self.assert_json_error(result, "Must be an organization administrator")
+            self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
         policies = [
             Stream.STREAM_POST_POLICY_ADMINS,
@@ -2272,7 +2272,7 @@ class StreamAdminTest(ZulipTestCase):
         result = self.client_patch(
             f"/json/streams/{stream.id}", {"message_retention_days": orjson.dumps(2).decode()}
         )
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         do_change_user_role(user_profile, UserProfile.ROLE_REALM_OWNER, acting_user=None)
         result = self.client_patch(
@@ -2295,7 +2295,7 @@ class StreamAdminTest(ZulipTestCase):
             f"/json/streams/{stream.id}",
             {"can_remove_subscribers_group": orjson.dumps(moderators_system_group.id).decode()},
         )
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
         self.login("iago")
         result = self.client_patch(
@@ -2384,7 +2384,9 @@ class StreamAdminTest(ZulipTestCase):
                 "is_web_public": False,
             }
         ]
-        with self.assertRaisesRegex(JsonableError, "Must be an organization owner"):
+        with self.assertRaisesRegex(
+            OrganizationOwnerRequiredError, "Must be an organization owner"
+        ):
             list_to_streams(streams_raw, admin, autocreate=True)
 
         streams_raw = [
@@ -2394,7 +2396,9 @@ class StreamAdminTest(ZulipTestCase):
                 "is_web_public": False,
             }
         ]
-        with self.assertRaisesRegex(JsonableError, "Must be an organization owner"):
+        with self.assertRaisesRegex(
+            OrganizationOwnerRequiredError, "Must be an organization owner"
+        ):
             list_to_streams(streams_raw, admin, autocreate=True)
 
         streams_raw = [

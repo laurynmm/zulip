@@ -28,6 +28,10 @@ format used by the Zulip server that they are interacting with.
   requires admin privileges and the requesting user is not an
   organization administrator. Previously, `code: BAD_REQUEST` was
   returned for these error responses.
+* [Error handling](/api/rest-error-handling): Error responses with
+  `code: UNAUTHORIZED_PRINCIPAL` will now return an HTTP status
+  code of 403. Previously, the HTTP status code for these errors
+  was 400.
 
 **Feature level 270**
 
