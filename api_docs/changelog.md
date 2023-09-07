@@ -22,6 +22,10 @@ format used by the Zulip server that they are interacting with.
 
 **Feature level 215**
 
+* [Error handling](/api/rest-error-handling): Error responses with
+  `code: UNAUTHORIZED_PRINCIPAL` will now return an HTTP status
+  code of 403. Previously, the HTTP status code for these errors
+  was 400.
 * `POST /invites`, `POST /invites/{prereg_id}/resend`,
   `DELETE /invites/{prereg_id}`: These endpoints now return
   `code: UNAUTHORIZED_PRINCIPAL` in the error response if the request

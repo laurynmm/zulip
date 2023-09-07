@@ -209,7 +209,7 @@ class RealmTest(ZulipTestCase):
 
         self.login("iago")
         result = self.client_patch("/json/realm", data)
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         result = self.client_patch("/json/realm", data)
@@ -254,7 +254,7 @@ class RealmTest(ZulipTestCase):
 
         req = dict(name=new_name)
         result = self.client_patch("/json/realm", req)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_unauthorized_name_change(self) -> None:
         data = {"full_name": "Sir Hamlet"}
@@ -616,7 +616,7 @@ class RealmTest(ZulipTestCase):
         self.assertFalse(realm.deactivated)
 
         result = self.client_post("/json/realm/deactivate")
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
         realm = get_realm("zulip")
         self.assertFalse(realm.deactivated)
 
@@ -826,7 +826,7 @@ class RealmTest(ZulipTestCase):
 
         req = dict(message_retention_days=orjson.dumps(10).decode())
         result = self.client_patch("/json/realm", req)
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
 
@@ -1490,7 +1490,7 @@ class RealmAPITest(ZulipTestCase):
 
         self.login("iago")
         result = self.client_patch("/json/realm", {setting_name: value})
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         result = self.client_patch("/json/realm", {setting_name: value})
