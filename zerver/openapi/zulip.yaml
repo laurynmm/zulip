@@ -5645,22 +5645,18 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - allOf:
-                      - $ref: "#/components/schemas/InvalidStreamError"
-                      - description: |
-                          A typical failed JSON response for when an invalid stream ID is passed:
-                  - allOf:
-                      - $ref: "#/components/schemas/CodedError"
-                      - example:
-                          {
-                            "code": "BAD_REQUEST",
-                            "msg": "Private streams cannot be made default.",
-                            "result": "error",
-                          }
-                        description: |
-                          A typical failed JSON response for when a user tries to add a private stream
-                          to the default streams set:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                invalid-stream-error:
+                  $ref: "#/components/examples/InvalidStreamErrorExample"
+                no-private-default-streams-error:
+                  description: |
+                    A typical failed JSON response for when a user tries
+                    to add a private stream to the default streams set:
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Private streams cannot be made default."
+                    result: "error"
     delete:
       operationId: remove-default-stream
       summary: Remove a default stream
@@ -16843,6 +16839,20 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/SimpleSuccess"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                insufficient-permission:
+                  description: |
+                    WRITE TEXT
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Insufficient permission"
+                    result: "error"
     get:
       operationId: get-user-group-members
       summary: Get user group members
@@ -16875,6 +16885,20 @@ paths:
                           A list containing the user IDs of members of the user group.
                     example:
                       {"msg": "", "result": "success", "members": [10, 12]}
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                invalid-user-group:
+                  description: |
+                    WRITE TEXT
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Invalid user group"
+                    result: "error"
   /user_groups/{user_group_id}:
     patch:
       operationId: update-user-group
@@ -17084,6 +17108,20 @@ paths:
                             },
                           ],
                       }
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                insufficient-permission:
+                  description: |
+                    WRITE TEXT
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Insufficient permission"
+                    result: "error"
   /user_groups/{user_group_id}/subgroups:
     post:
       operationId: update-user-group-subgroups
@@ -17128,6 +17166,20 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/SimpleSuccess"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                insufficient-permission:
+                  description: |
+                    WRITE TEXT
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Insufficient permission"
+                    result: "error"
     get:
       operationId: get-user-group-subgroups
       summary: Get subgroups of the user group
@@ -17169,6 +17221,20 @@ paths:
                           A list containing the IDs of subgroups of the user group.
                     example:
                       {"msg": "", "result": "success", "subgroups": [2, 3]}
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                insufficient-permission:
+                  description: |
+                    WRITE TEXT
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Insufficient permission"
+                    result: "error"
   /user_groups/{user_group_id}/members/{user_id}:
     get:
       operationId: get-is-user-group-member
@@ -17205,6 +17271,20 @@ paths:
                         "result": "success",
                         "is_user_group_member": false,
                       }
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorSchema"
+              examples:
+                insufficient-permission:
+                  description: |
+                    WRITE TEXT
+                  value:
+                    code: "BAD_REQUEST"
+                    msg: "Insufficient permission"
+                    result: "error"
   /real-time:
     # This entry is a hack; it exists to give us a place to put the text
     # documenting the parameters for call_on_each_event and friends.
@@ -17424,6 +17504,15 @@ components:
         Basic authentication, with the user's email as the username, and the API
         key as the password. The API key can be fetched using the
         `/fetch_api_key` or `/dev_fetch_api_key` endpoints.
+
+  examples:
+    InvalidStreamErrorExample:
+      description: |
+        A typical failed JSON response for when an invalid stream ID is passed:
+      value:
+        msg: "Invalid stream ID"
+        code: "BAD_REQUEST"
+        result: "error"
 
   schemas:
     IgnoredParametersUnsupported:
@@ -19302,6 +19391,14 @@ components:
               "result": "success",
               "user_id": 5,
             }
+    CodedErrorSchema:
+      allOf:
+        - $ref: "#/components/schemas/CodedErrorBase"
+        - additionalProperties: false
+          properties:
+            result: {}
+            msg: {}
+            code: {}
     CodedError:
       allOf:
         - $ref: "#/components/schemas/CodedErrorBase"
@@ -19331,6 +19428,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/CodedErrorBase"
         - additionalProperties: false
+          required:
+            - queue_id
           properties:
             result: {}
             msg: {}
@@ -19378,6 +19477,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/CodedErrorBase"
         - additionalProperties: false
+          required:
+            - stream
           properties:
             result: {}
             msg: {}
@@ -19397,6 +19498,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/CodedErrorBase"
         - additionalProperties: false
+          required:
+            - stream_id
           properties:
             result: {}
             msg: {}
@@ -19429,6 +19532,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/CodedErrorBase"
         - additionalProperties: false
+          required:
+            - var_name
           description: |
             ## Missing request parameter(s)
 

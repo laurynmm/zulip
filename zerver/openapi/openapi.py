@@ -205,11 +205,29 @@ def get_schema(endpoint: str, method: str, status_code: str) -> Dict[str, Any]:
 
 def get_openapi_fixture(endpoint: str, method: str, status_code: str = "200") -> Dict[str, Any]:
     """Fetch a fixture from the full spec object."""
+    if (
+        "example"
+        not in openapi_spec.openapi()["paths"][endpoint][method.lower()]["responses"][status_code][
+            "content"
+        ]["application/json"]["schema"]
+    ):
+        return openapi_spec.openapi()["paths"][endpoint][method.lower()]["responses"][status_code][
+            "content"
+        ]["application/json"]["examples"]
     return get_schema(endpoint, method, status_code)["example"]
 
 
 def get_openapi_fixture_description(endpoint: str, method: str, status_code: str = "200") -> str:
     """Fetch a fixture from the full spec object."""
+    if (
+        "example"
+        not in openapi_spec.openapi()["paths"][endpoint][method.lower()]["responses"][status_code][
+            "content"
+        ]["application/json"]["schema"]
+    ):
+        return openapi_spec.openapi()["paths"][endpoint][method.lower()]["responses"][status_code][
+            "content"
+        ]["application/json"]["examples"]
     return get_schema(endpoint, method, status_code)["description"]
 
 
@@ -393,14 +411,8 @@ def validate_against_openapi_schema(
         raise SchemaError("Response is not 200 but is validating against 200 schema")
     # Code is not declared but appears in various 400 responses. If
     # common, it can be added to 400 response schema
-    if status_code.startswith("4"):
-        # This return statement should ideally be not here. But since
-        # we have not defined 400 responses for various paths this has
-        # been added as all 400 have the same schema.  When all 400
-        # response have been defined this should be removed.
-        return True
 
-    if endpoint == "/events" and method == "get":
+    if endpoint == "/events" and method == "get" and status_code == "200":
         # This a temporary function for checking only documented events
         # as all events haven't been documented yet.
         # TODO: Remove this after all events have been documented.

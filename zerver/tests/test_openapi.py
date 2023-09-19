@@ -1039,6 +1039,9 @@ class OpenAPIAttributesTest(ZulipTestCase):
                 tag = operation["tags"][0]
                 assert tag in VALID_TAGS
                 for status_code, response in operation["responses"].items():
+                    # print(path)
+                    # print(method)
+                    # print(status_code)
                     schema = response["content"]["application/json"]["schema"]
                     # Validate the documented examples for each event type
                     # in api/get-events for the documented event schemas.
@@ -1065,9 +1068,19 @@ class OpenAPIAttributesTest(ZulipTestCase):
                             )
                         continue
                     validate_schema(schema)
-                    assert validate_against_openapi_schema(
-                        schema["example"], path, method, status_code
-                    )
+                    if "example" not in schema:
+                        assert "examples" in response["content"]["application/json"]
+                        examples = response["content"]["application/json"]["examples"]
+                        for example in examples:
+                            # print(examples[example]["description"])
+                            # print(examples[example]["value"])
+                            assert validate_against_openapi_schema(
+                                examples[example]["value"], path, method, status_code
+                            )
+                    else:
+                        assert validate_against_openapi_schema(
+                            schema["example"], path, method, status_code
+                        )
 
 
 class OpenAPIRegexTest(ZulipTestCase):
