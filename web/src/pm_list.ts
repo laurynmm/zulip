@@ -180,7 +180,7 @@ export function is_direct_messages_collapsed(): boolean {
     return direct_messages_collapsed;
 }
 
-export function toggle_private_messages_section(): void {
+export function toggle_direct_messages_section(): void {
     // change the state of direct message section depending on
     // the previous state.
     if (direct_messages_collapsed) {

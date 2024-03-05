@@ -786,7 +786,7 @@ export function initialize() {
             // section is uncollapsed but out of view; otherwise, we
             // toggle its collapsed state.
             if (scroll_position === 0 || pm_list.is_direct_messages_collapsed()) {
-                pm_list.toggle_private_messages_section();
+                pm_list.toggle_direct_messages_section();
             }
             $left_sidebar_scrollbar.scrollTop(0);
         },
