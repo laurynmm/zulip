@@ -16,7 +16,7 @@ let prior_dom: vdom.Tag<PMNode> | undefined;
 // This module manages the direct messages section in the upper
 // left corner of the app.  This was split out from stream_list.ts.
 
-let private_messages_collapsed = false;
+let direct_messages_collapsed = false;
 
 // The direct messages section can be zoomed in to view more messages.
 // This keeps track of if we're zoomed in or not.
@@ -33,7 +33,7 @@ export function set_count(count: number): void {
 }
 
 export function close(): void {
-    private_messages_collapsed = true;
+    direct_messages_collapsed = true;
     $("#toggle_private_messages_section_icon").removeClass("fa-caret-down");
     $("#toggle_private_messages_section_icon").addClass("fa-caret-right");
 
@@ -76,7 +76,7 @@ function set_dom_to(new_dom: vdom.Tag<PMNode>): void {
 }
 
 export function update_private_messages(): void {
-    if (private_messages_collapsed) {
+    if (direct_messages_collapsed) {
         // In the collapsed state, we will still display the current
         // conversation, to preserve the UI invariant that there's
         // always something highlighted in the left sidebar.
@@ -102,7 +102,7 @@ export function update_private_messages(): void {
 }
 
 export function expand(): void {
-    private_messages_collapsed = false;
+    direct_messages_collapsed = false;
 
     $("#toggle_private_messages_section_icon").addClass("fa-caret-down");
     $("#toggle_private_messages_section_icon").removeClass("fa-caret-right");
@@ -176,14 +176,14 @@ export function handle_message_view_deactivated(): void {
     update_private_messages();
 }
 
-export function is_private_messages_collapsed(): boolean {
-    return private_messages_collapsed;
+export function is_direct_messages_collapsed(): boolean {
+    return direct_messages_collapsed;
 }
 
 export function toggle_private_messages_section(): void {
     // change the state of direct message section depending on
     // the previous state.
-    if (private_messages_collapsed) {
+    if (direct_messages_collapsed) {
         expand();
     } else {
         close();
