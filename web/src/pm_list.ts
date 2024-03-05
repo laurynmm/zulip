@@ -134,7 +134,7 @@ function scroll_pm_into_view($target_li: JQuery): void {
     }
 }
 
-function scroll_all_private_into_view(): void {
+function scroll_all_direct_messages_into_view(): void {
     const $container = $("#left_sidebar_scroll_container");
     const $scroll_element = scroll_util.get_scroll_element($container);
     $scroll_element.scrollTop(0);
@@ -151,7 +151,7 @@ export function handle_narrow_activated(filter: Filter): void {
         // section is expanded before scrolling.
         expand();
         highlight_all_direct_messages_view();
-        scroll_all_private_into_view();
+        scroll_all_direct_messages_into_view();
     } else {
         unhighlight_all_direct_messages_view();
     }
