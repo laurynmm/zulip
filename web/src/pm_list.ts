@@ -120,7 +120,7 @@ export function update_dom_with_unread_counts(counts: FullUnreadCountsData): voi
     set_count(counts.direct_message_count);
 }
 
-export function highlight_all_private_messages_view(): void {
+function highlight_all_direct_messages_view(): void {
     $(".direct-messages-container").addClass("active_private_messages_section");
 }
 
@@ -152,7 +152,7 @@ export function handle_narrow_activated(filter: Filter): void {
         // top, but empirically that doesn't occur, so we just ensure the
         // section is expanded before scrolling.
         expand();
-        highlight_all_private_messages_view();
+        highlight_all_direct_messages_view();
         scroll_all_private_into_view();
     } else {
         unhighlight_all_private_messages_view();
