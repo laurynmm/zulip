@@ -51,7 +51,7 @@ export function _build_direct_messages_list(): vdom.Tag<PMNode> {
     const all_conversations_shown = conversations_to_be_shown.length === conversations.length;
     if (!all_conversations_shown) {
         pm_list_nodes.push(
-            pm_list_dom.more_private_conversations_li(more_conversations_unread_count),
+            pm_list_dom.more_direct_message_conversations_li(more_conversations_unread_count),
         );
     }
     const dom_ast = pm_list_dom.pm_ul(pm_list_nodes);

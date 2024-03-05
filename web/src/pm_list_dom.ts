@@ -37,7 +37,7 @@ export function keyed_pm_li(conversation: PMListConversation): vdom.Node<PMNode>
     };
 }
 
-export function more_private_conversations_li(
+export function more_direct_message_conversations_li(
     more_conversations_unread_count: number,
 ): vdom.Node<PMNode> {
     const render = (): string =>
