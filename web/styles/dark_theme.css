@@ -388,7 +388,7 @@
         color: inherit;
     }
 
-    .active_private_messages_section {
+    .active-direct-messages-section {
         #private_messages_section,
         #direct-messages-list,
         #hide-more-direct-messages {
