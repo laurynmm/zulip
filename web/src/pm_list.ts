@@ -40,21 +40,22 @@ export function close(): void {
 
 export function _build_direct_messages_list(): vdom.Tag<PMNode> {
     const conversations = pm_list_data.get_conversations();
-    const pm_list_info = pm_list_data.get_list_info(zoomed);
-    const conversations_to_be_shown = pm_list_info.conversations_to_be_shown;
-    const more_conversations_unread_count = pm_list_info.more_conversations_unread_count;
+    const direct_message_list_info = pm_list_data.get_list_info(zoomed);
+    const conversations_to_be_shown = direct_message_list_info.conversations_to_be_shown;
+    const more_conversations_unread_count =
+        direct_message_list_info.more_conversations_unread_count;
 
-    const pm_list_nodes = conversations_to_be_shown.map((conversation) =>
+    const direct_message_list_nodes = conversations_to_be_shown.map((conversation) =>
         pm_list_dom.keyed_pm_li(conversation),
     );
 
     const all_conversations_shown = conversations_to_be_shown.length === conversations.length;
     if (!all_conversations_shown) {
-        pm_list_nodes.push(
+        direct_message_list_nodes.push(
             pm_list_dom.more_direct_message_conversations_li(more_conversations_unread_count),
         );
     }
-    const dom_ast = pm_list_dom.pm_ul(pm_list_nodes);
+    const dom_ast = pm_list_dom.pm_ul(direct_message_list_nodes);
     return dom_ast;
 }
 
@@ -126,11 +127,15 @@ function unhighlight_all_direct_messages_view(): void {
     $(".direct-messages-container").removeClass("active-direct-messages-section");
 }
 
-function scroll_pm_into_view($target_li: JQuery): void {
+function scroll_direct_message_into_view($target_li: JQuery): void {
     const $container = $("#left_sidebar_scroll_container");
-    const pm_header_height = $("#direct-messages-section-header").outerHeight();
+    const direct_message_header_height = $("#direct-messages-section-header").outerHeight();
     if ($target_li.length > 0) {
-        scroll_util.scroll_element_into_container($target_li, $container, pm_header_height);
+        scroll_util.scroll_element_into_container(
+            $target_li,
+            $container,
+            direct_message_header_height,
+        );
     }
 }
 
@@ -161,7 +166,7 @@ export function handle_narrow_activated(filter: Filter): void {
             const $active_filter_li = $(
                 `li[data-user-ids-string='${CSS.escape(current_user_ids_string)}']`,
             );
-            scroll_pm_into_view($active_filter_li);
+            scroll_direct_message_into_view($active_filter_li);
         }
         update_direct_messages();
     }
