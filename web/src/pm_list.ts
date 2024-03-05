@@ -37,7 +37,7 @@ export function close(): void {
     $("#toggle_private_messages_section_icon").removeClass("fa-caret-down");
     $("#toggle_private_messages_section_icon").addClass("fa-caret-right");
 
-    update_private_messages();
+    update_direct_messages();
 }
 
 export function _build_direct_messages_list(): vdom.Tag<PMNode> {
@@ -75,7 +75,7 @@ function set_dom_to(new_dom: vdom.Tag<PMNode>): void {
     prior_dom = new_dom;
 }
 
-export function update_private_messages(): void {
+export function update_direct_messages(): void {
     if (direct_messages_collapsed) {
         // In the collapsed state, we will still display the current
         // conversation, to preserve the UI invariant that there's
@@ -106,7 +106,7 @@ export function expand(): void {
 
     $("#toggle_private_messages_section_icon").addClass("fa-caret-down");
     $("#toggle_private_messages_section_icon").removeClass("fa-caret-right");
-    update_private_messages();
+    update_direct_messages();
 }
 
 export function update_dom_with_unread_counts(counts: FullUnreadCountsData): void {
@@ -115,7 +115,7 @@ export function update_dom_with_unread_counts(counts: FullUnreadCountsData): voi
     // it's not an important optimization, because it's unlikely a
     // user would have 10,000s of unread direct messages where it
     // could matter.
-    update_private_messages();
+    update_direct_messages();
     // This is just the global unread count.
     set_count(counts.direct_message_count);
 }
@@ -165,7 +165,7 @@ export function handle_narrow_activated(filter: Filter): void {
             );
             scroll_pm_into_view($active_filter_li);
         }
-        update_private_messages();
+        update_direct_messages();
     }
 }
 
@@ -173,7 +173,7 @@ export function handle_message_view_deactivated(): void {
     // Since one can renarrow via the keyboard shortcut or similar, we
     // avoid disturbing the zoomed state here.
     unhighlight_all_private_messages_view();
-    update_private_messages();
+    update_direct_messages();
 }
 
 export function is_direct_messages_collapsed(): boolean {
@@ -192,7 +192,7 @@ export function toggle_private_messages_section(): void {
 
 function zoom_in(): void {
     zoomed = true;
-    update_private_messages();
+    update_direct_messages();
     $(".direct-messages-container").removeClass("zoom-out").addClass("zoom-in");
     $("#streams_list").hide();
     $(".left-sidebar .right-sidebar-items").hide();
@@ -200,7 +200,7 @@ function zoom_in(): void {
 
 function zoom_out(): void {
     zoomed = false;
-    update_private_messages();
+    update_direct_messages();
     $(".direct-messages-container").removeClass("zoom-in").addClass("zoom-out");
     $("#streams_list").show();
     $(".left-sidebar .right-sidebar-items").show();

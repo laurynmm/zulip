@@ -84,7 +84,7 @@ function test_helper({override}) {
 run_test("insert_message", ({override}) => {
     message_store.clear_for_testing();
 
-    override(pm_list, "update_private_messages", noop);
+    override(pm_list, "update_direct_messages", noop);
 
     const helper = test_helper({override});
 

@@ -149,13 +149,13 @@ export function update_presence_info(user_id, info, server_time) {
 
     presence.update_info_from_event(user_id, info, server_time);
     redraw_user(user_id);
-    pm_list.update_private_messages();
+    pm_list.update_direct_messages();
 }
 
 export function redraw() {
     build_user_sidebar();
     user_cursor.redraw();
-    pm_list.update_private_messages();
+    pm_list.update_direct_messages();
 }
 
 export function reset_users() {

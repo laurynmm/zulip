@@ -138,7 +138,7 @@ mock_esm("../src/narrow_title", {
     update_narrow_title() {},
 });
 mock_esm("../src/pm_list", {
-    update_private_messages: noop,
+    update_direct_messages: noop,
     handle_message_view_deactivated: noop,
 });
 mock_esm("../src/recent_senders", {

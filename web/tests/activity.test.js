@@ -697,7 +697,7 @@ test("redraw_muted_user", () => {
 });
 
 test("update_presence_info", ({override}) => {
-    override(pm_list, "update_private_messages", noop);
+    override(pm_list, "update_direct_messages", noop);
 
     realm.realm_presence_disabled = false;
     realm.server_presence_ping_interval_seconds = 60;
@@ -749,7 +749,7 @@ test("update_presence_info", ({override}) => {
 });
 
 test("initialize", ({override, mock_template}) => {
-    override(pm_list, "update_private_messages", noop);
+    override(pm_list, "update_direct_messages", noop);
     override(watchdog, "check_for_unsuspend", noop);
     override(buddy_list, "fill_screen_with_content", noop);
 

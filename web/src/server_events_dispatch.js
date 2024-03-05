@@ -920,7 +920,7 @@ export function dispatch_normal_event(event) {
             if (event.emoji_name !== undefined) {
                 user_status.set_status_emoji(event);
                 activity_ui.redraw_user(event.user_id);
-                pm_list.update_private_messages();
+                pm_list.update_direct_messages();
                 message_live_update.update_user_status_emoji(
                     event.user_id,
                     user_status.get_status_emoji(event.user_id),

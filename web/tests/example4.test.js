@@ -134,7 +134,7 @@ run_test("update user with event", ({override}) => {
     // doesn't get called!
     override(activity_ui, "redraw", noop);
     override(message_live_update, "update_user_full_name", noop);
-    override(pm_list, "update_private_messages", noop);
+    override(pm_list, "update_direct_messages", noop);
     override(settings_users, "update_user_data", noop);
     override(settings_users, "update_bot_data", noop);
 

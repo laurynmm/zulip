@@ -1147,7 +1147,7 @@ run_test("user_status", ({override}) => {
         const stub = make_stub();
         override(activity_ui, "redraw_user", stub.f);
         override(compose_pm_pill, "get_user_ids", () => [event.user_id]);
-        override(pm_list, "update_private_messages", noop);
+        override(pm_list, "update_direct_messages", noop);
         dispatch(event);
         assert.equal(stub.num_calls, 2);
         const args = stub.get_args("user_id");

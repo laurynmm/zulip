@@ -102,7 +102,7 @@ run_test("update_messages", () => {
         [message_notifications, "received_messages"],
         [unread_ui, "update_unread_counts"],
         [stream_list, "update_streams_sidebar"],
-        [pm_list, "update_private_messages"],
+        [pm_list, "update_direct_messages"],
     ];
 
     const helper = test_helper(side_effects);

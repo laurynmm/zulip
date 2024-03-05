@@ -28,7 +28,7 @@ mock_esm("../src/compose_state", {
     update_email() {},
 });
 mock_esm("../src/pm_list", {
-    update_private_messages() {},
+    update_direct_messages() {},
 });
 mock_esm("../src/settings_linkifiers", {
     maybe_disable_widgets() {},

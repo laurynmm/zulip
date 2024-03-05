@@ -62,7 +62,7 @@ export const update_person = function update(person) {
         settings_users.update_user_data(person.user_id, person);
         activity_ui.redraw();
         message_live_update.update_user_full_name(person.user_id, person.full_name);
-        pm_list.update_private_messages();
+        pm_list.update_direct_messages();
         if (people.is_my_user_id(person.user_id)) {
             current_user.full_name = person.full_name;
             settings_account.update_full_name(person.full_name);

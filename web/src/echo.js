@@ -338,7 +338,7 @@ export function edit_locally(message, request) {
         msg_list.view.rerender_messages([message]);
     }
     stream_list.update_streams_sidebar();
-    pm_list.update_private_messages();
+    pm_list.update_direct_messages();
     return message;
 }
 

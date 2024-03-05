@@ -165,7 +165,7 @@ export function insert_new_messages(messages, sent_by_this_client) {
     unread_ops.process_visible();
     message_notifications.received_messages(messages);
     stream_list.update_streams_sidebar();
-    pm_list.update_private_messages();
+    pm_list.update_direct_messages();
     recent_view_ui.process_messages(messages);
 }
 
@@ -566,7 +566,7 @@ export function update_messages(events) {
 
     unread_ui.update_unread_counts();
     stream_list.update_streams_sidebar();
-    pm_list.update_private_messages();
+    pm_list.update_direct_messages();
 }
 
 export function remove_messages(message_ids) {
