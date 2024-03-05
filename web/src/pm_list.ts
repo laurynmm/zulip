@@ -124,7 +124,7 @@ function highlight_all_direct_messages_view(): void {
     $(".direct-messages-container").addClass("active_private_messages_section");
 }
 
-function unhighlight_all_private_messages_view(): void {
+function unhighlight_all_direct_messages_view(): void {
     $(".direct-messages-container").removeClass("active_private_messages_section");
 }
 
@@ -155,7 +155,7 @@ export function handle_narrow_activated(filter: Filter): void {
         highlight_all_direct_messages_view();
         scroll_all_private_into_view();
     } else {
-        unhighlight_all_private_messages_view();
+        unhighlight_all_direct_messages_view();
     }
     if (narrow_to_private_messages_section) {
         const current_user_ids_string = pm_list_data.get_active_user_ids_string();
@@ -172,7 +172,7 @@ export function handle_narrow_activated(filter: Filter): void {
 export function handle_message_view_deactivated(): void {
     // Since one can renarrow via the keyboard shortcut or similar, we
     // avoid disturbing the zoomed state here.
-    unhighlight_all_private_messages_view();
+    unhighlight_all_direct_messages_view();
     update_direct_messages();
 }
 
