@@ -23,9 +23,7 @@ let direct_messages_collapsed = false;
 let zoomed = false;
 
 function get_direct_messages_section_header(): JQuery {
-    return $(
-        ".direct-messages-container #private_messages_section #direct-messages-section-header",
-    );
+    return $(".direct-messages-container #direct-messages-section #direct-messages-section-header");
 }
 
 export function set_count(count: number): void {
