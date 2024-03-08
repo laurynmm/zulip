@@ -352,7 +352,7 @@ def remote_server_deactivate_page(
         raise JsonableError(_("Parameter 'confirmed' is required"))
 
     try:
-        do_deactivate_remote_server(remote_server, billing_session)
+        do_deactivate_remote_server(billing_session)
     except ServerDeactivateWithExistingPlanError:  # nocoverage
         context["show_existing_plan_error"] = "true"
         return render(

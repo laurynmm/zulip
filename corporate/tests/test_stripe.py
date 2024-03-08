@@ -5661,18 +5661,18 @@ class BillingHelpersTest(ZulipTestCase):
         self.assertFalse(remote_server.deactivated)
 
         billing_session = RemoteServerBillingSession(remote_server)
-        do_deactivate_remote_server(remote_server, billing_session)
-
-        remote_server = RemoteZulipServer.objects.get(uuid=server_uuid)
+        do_deactivate_remote_server(billing_session)
+        remote_server.refresh_from_db()
+        self.assertTrue(remote_server.deactivated)
         remote_realm_audit_log = RemoteZulipServerAuditLog.objects.filter(
             event_type=AuditLogEventType.REMOTE_SERVER_DEACTIVATED
         ).last()
         assert remote_realm_audit_log is not None
-        self.assertTrue(remote_server.deactivated)
+        self.assertEqual(remote_realm_audit_log.server, remote_server)
 
         # Try to deactivate a remote server that is already deactivated
         with self.assertLogs("corporate.stripe", "WARN") as warning_log:
-            do_deactivate_remote_server(remote_server, billing_session)
+            do_deactivate_remote_server(billing_session)
             self.assertEqual(
                 warning_log.output,
                 [
@@ -5681,7 +5681,7 @@ class BillingHelpersTest(ZulipTestCase):
                 ],
             )
 
-        do_reactivate_remote_server(remote_server)
+        do_reactivate_remote_server(billing_session)
         remote_server.refresh_from_db()
         self.assertFalse(remote_server.deactivated)
         remote_realm_audit_log = RemoteZulipServerAuditLog.objects.latest("id")
@@ -5691,7 +5691,7 @@ class BillingHelpersTest(ZulipTestCase):
         self.assertEqual(remote_realm_audit_log.server, remote_server)
 
         with self.assertLogs("corporate.stripe", "WARN") as warning_log:
-            do_reactivate_remote_server(remote_server)
+            do_reactivate_remote_server(billing_session)
             self.assertEqual(
                 warning_log.output,
                 [

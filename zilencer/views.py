@@ -124,7 +124,7 @@ def deactivate_remote_server(
     from corporate.lib.stripe import RemoteServerBillingSession, do_deactivate_remote_server
 
     billing_session = RemoteServerBillingSession(remote_server)
-    do_deactivate_remote_server(remote_server, billing_session)
+    do_deactivate_remote_server(billing_session)
     return json_success(request)
 
 
