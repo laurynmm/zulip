@@ -619,6 +619,8 @@ class AuditLogEventType(Enum):
     BILLING_ENTITY_PLAN_TYPE_CHANGED = 10
     CUSTOMER_PROPERTY_CHANGED = 11
     CUSTOMER_PLAN_PROPERTY_CHANGED = 12
+    BILLING_ENTITY_DEACTIVATED = 13
+    BILLING_ENTITY_REACTIVATED = 14
 
 
 class PlanTierChangeType(Enum):
@@ -4649,6 +4651,10 @@ class RemoteServerBillingSession(BillingSession):
             event_type is AuditLogEventType.CUSTOMER_SWITCHED_FROM_ANNUAL_TO_MONTHLY_PLAN
         ):  # nocoverage
             return RemoteZulipServerAuditLog.CUSTOMER_SWITCHED_FROM_ANNUAL_TO_MONTHLY_PLAN
+        elif event_type is AuditLogEventType.BILLING_ENTITY_DEACTIVATED:
+            return RemoteZulipServerAuditLog.REMOTE_SERVER_DEACTIVATED
+        elif event_type is AuditLogEventType.BILLING_ENTITY_REACTIVATED:
+            return RemoteZulipServerAuditLog.REMOTE_SERVER_REACTIVATED
         else:  # nocoverage
             raise BillingSessionAuditLogEventError(event_type)
 
@@ -5128,11 +5134,11 @@ def ensure_customer_does_not_have_active_plan(customer: Customer) -> None:
 
 
 @transaction.atomic
-def do_reactivate_remote_server(remote_server: RemoteZulipServer) -> None:
+def do_reactivate_remote_server(billing_session: RemoteServerBillingSession) -> None:
     """
     Utility function for reactivating deactivated registrations.
     """
-
+    remote_server = billing_session.remote_server
     if not remote_server.deactivated:
         billing_logger.warning(
             "Cannot reactivate remote server with ID %d, server is already active.",
@@ -5142,17 +5148,14 @@ def do_reactivate_remote_server(remote_server: RemoteZulipServer) -> None:
 
     remote_server.deactivated = False
     remote_server.save(update_fields=["deactivated"])
-    RemoteZulipServerAuditLog.objects.create(
-        event_type=RealmAuditLog.REMOTE_SERVER_REACTIVATED,
-        server=remote_server,
-        event_time=timezone_now(),
+    billing_session.write_to_audit_log(
+        event_time=timezone_now(), event_type=AuditLogEventType.BILLING_ENTITY_REACTIVATED
     )
 
 
 @transaction.atomic
-def do_deactivate_remote_server(
-    remote_server: RemoteZulipServer, billing_session: RemoteServerBillingSession
-) -> None:
+def do_deactivate_remote_server(billing_session: RemoteServerBillingSession) -> None:
+    remote_server = billing_session.remote_server
     if remote_server.deactivated:
         billing_logger.warning(
             "Cannot deactivate remote server with ID %d, server has already been deactivated.",
@@ -5192,10 +5195,8 @@ def do_deactivate_remote_server(
 
     remote_server.deactivated = True
     remote_server.save(update_fields=["deactivated"])
-    RemoteZulipServerAuditLog.objects.create(
-        event_type=RealmAuditLog.REMOTE_SERVER_DEACTIVATED,
-        server=remote_server,
-        event_time=timezone_now(),
+    billing_session.write_to_audit_log(
+        event_time=timezone_now(), event_type=AuditLogEventType.BILLING_ENTITY_DEACTIVATED
     )
 
 
