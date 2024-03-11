@@ -28,6 +28,7 @@ from zerver.actions.user_settings import do_change_user_setting
 from zerver.lib.test_classes import ZulipTestCase
 from zerver.lib.test_helpers import reset_email_visibility_to_everyone_in_zulip_realm
 from zerver.models import MultiuseInvite, PreregistrationUser, Realm, UserMessage, UserProfile
+from zerver.models.realm_audit_logs import RealmAuditLog
 from zerver.models.realms import OrgTypeEnum, get_org_type_display_name, get_realm
 from zilencer.lib.remote_counts import MissingDataError
 
@@ -1433,14 +1434,16 @@ class TestSupportEndpoint(ZulipTestCase):
             lear_realm.refresh_from_db()
             self.assertTrue(lear_realm.deactivated)
 
-        with mock.patch("corporate.views.support.do_send_realm_reactivation_email") as m:
-            result = self.client_post(
-                "/activity/support", {"realm_id": f"{lear_realm.id}", "status": "active"}
-            )
-            m.assert_called_once_with(lear_realm, acting_user=self.example_user("iago"))
-            self.assert_in_success_response(
-                ["Realm reactivation email sent to admins of lear"], result
-            )
+        print(lear_realm.get_human_admin_users())
+
+        result = self.client_post(
+            "/activity/support", {"realm_id": f"{lear_realm.id}", "status": "active"}
+        )
+        self.assert_in_success_response(
+            ["Realm reactivation email sent to admins of lear"], result
+        )
+        audit_log = RealmAuditLog.objects.filter(event_type=RealmAuditLog.REALM_REACTIVATION_EMAIL_SENT).last()
+        self.assertEqual(audit_log.realm, lear_realm)
 
     def test_change_subdomain(self) -> None:
         cordelia = self.example_user("cordelia")

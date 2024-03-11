@@ -33,7 +33,6 @@ from corporate.lib.stripe import (
     SupportType,
     SupportViewRequest,
     cents_to_dollar_string,
-    do_reactivate_remote_server,
 )
 from corporate.lib.support import (
     CloudSupportData,
@@ -48,7 +47,6 @@ from zerver.actions.realm_settings import (
     do_change_realm_org_type,
     do_change_realm_plan_type,
     do_scrub_realm,
-    do_send_realm_reactivation_email,
 )
 from zerver.actions.users import do_delete_user_preserving_messages
 from zerver.decorator import require_server_admin, zulip_login_required
@@ -437,7 +435,7 @@ def support(
                 user=acting_user, realm=realm, support_session=True
             )
             if status == "active":
-                do_send_realm_reactivation_email(realm, acting_user=acting_user)
+                realm_status_billing_session.do_reactivate_billing_entity()
                 context["success_message"] = (
                     f"Realm reactivation email sent to admins of {realm.string_id}."
                 )
@@ -721,7 +719,7 @@ def remote_servers_support(
                 support_staff=acting_user, remote_server=remote_server
             )
             if remote_server_status == "active":
-                do_reactivate_remote_server(remote_server)
+                remote_server_status_billing_session.do_reactivate_billing_entity()
                 context["success_message"] = (
                     f"Remote server ({remote_server.hostname}) reactivated."
                 )
