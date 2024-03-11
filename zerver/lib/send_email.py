@@ -489,6 +489,7 @@ def send_email_to_admins(
     context: Mapping[str, Any] = {},
 ) -> None:
     admins = realm.get_human_admin_users()
+    print(admins)
     admin_user_ids = [admin.id for admin in admins]
     send_email(
         template_prefix,

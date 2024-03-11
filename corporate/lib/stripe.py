@@ -606,6 +606,7 @@ class BillingSessionEventType(IntEnum):
     CUSTOMER_PROPERTY_CHANGED = 11
     CUSTOMER_PLAN_PROPERTY_CHANGED = 12
     BILLING_ENTITY_DEACTIVATED = 13
+    BILLING_ENTITY_REACTIVATED = 14
 
 
 class PlanTierChangeType(Enum):
@@ -964,6 +965,10 @@ class BillingSession(ABC):
 
     @abstractmethod
     def do_deactivate_billing_entity(self) -> None:
+        pass
+
+    @abstractmethod
+    def do_reactivate_billing_entity(self) -> None:
         pass
 
     @abstractmethod
@@ -4173,6 +4178,12 @@ class RealmBillingSession(BillingSession):
         )
 
     @override
+    def do_reactivate_billing_entity(self) -> None:      
+        from zerver.actions.realm_settings import do_send_realm_reactivation_email
+
+        do_send_realm_reactivation_email(self.realm, acting_user=self.user)
+
+    @override
     def approve_sponsorship(self) -> str:
         # Sponsorship approval is only a support admin action.
         assert self.support_session
@@ -4659,6 +4670,12 @@ class RemoteRealmBillingSession(BillingSession):
         assert self.remote_realm is not None
 
     @override
+    def do_reactivate_billing_entity(self) -> None:  # nocoverage
+        # Not currently implemented, but would deactivate
+        # the remote realm associated with the billing session.
+        assert self.remote_realm is not None
+
+    @override
     def check_plan_tier_is_billable(self, plan_tier: int) -> bool:  # nocoverage
         implemented_plan_tiers = [
             CustomerPlan.TIER_SELF_HOSTED_BASIC,
@@ -4893,6 +4910,9 @@ class RemoteServerBillingSession(BillingSession):
             return AuditLogEventType.CUSTOMER_SWITCHED_FROM_ANNUAL_TO_MONTHLY_PLAN
         elif event_type is BillingSessionEventType.BILLING_ENTITY_DEACTIVATED:
             return AuditLogEventType.REMOTE_SERVER_DEACTIVATED
+        elif event_type is BillingSessionEventType.BILLING_ENTITY_REACTIVATED:
+            return AuditLogEventType.REMOTE_SERVER_REACTIVATED
+
         else:  # nocoverage
             raise BillingSessionAuditLogEventError(event_type)
 
@@ -5132,6 +5152,23 @@ class RemoteServerBillingSession(BillingSession):
         remote_server.save(update_fields=["deactivated"])
         self.write_to_audit_log(
             event_type=AuditLogEventType.BILLING_ENTITY_DEACTIVATED, event_time=timezone_now()
+        )
+
+    @override
+    @transaction.atomic
+    def do_reactivate_billing_entity(self) -> None:
+        remote_server = self.remote_server
+        if not remote_server.deactivated:
+            billing_logger.warning(
+                "Cannot reactivate remote server with ID %d, server is already active.",
+                remote_server.id,
+            )
+            return
+
+        remote_server.deactivated = False
+        remote_server.save(update_fields=["deactivated"])
+        self.write_to_audit_log(
+            event_type=AuditLogEventType.BILLING_ENTITY_REACTIVATED, event_time=timezone_now()
         )
 
     @override
