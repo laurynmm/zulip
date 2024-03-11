@@ -1406,18 +1406,19 @@ class TestSupportEndpoint(ZulipTestCase):
         self.assert_length(messages, 1)
 
     def test_activate_or_deactivate_realm(self) -> None:
-        cordelia = self.example_user("cordelia")
         lear_realm = get_realm("lear")
-        self.login_user(cordelia)
+        self.assertFalse(lear_realm.deactivated)
 
+        cordelia = self.example_user("cordelia")
+        self.login_user(cordelia)
         result = self.client_post(
             "/activity/support", {"realm_id": f"{lear_realm.id}", "status": "deactivated"}
         )
         self.assertEqual(result.status_code, 302)
         self.assertEqual(result["Location"], "/login/")
+        self.assertFalse(lear_realm.deactivated)
 
         self.login("iago")
-
         with mock.patch("corporate.views.support.do_deactivate_realm") as m:
             result = self.client_post(
                 "/activity/support", {"realm_id": f"{lear_realm.id}", "status": "deactivated"}
@@ -1429,6 +1430,8 @@ class TestSupportEndpoint(ZulipTestCase):
                 email_owners=True,
             )
             self.assert_in_success_response(["lear deactivated"], result)
+            lear_realm.refresh_from_db()
+            self.assertTrue(lear_realm.deactivated)
 
         with mock.patch("corporate.views.support.do_send_realm_reactivation_email") as m:
             result = self.client_post(

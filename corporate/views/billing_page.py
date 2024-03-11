@@ -18,7 +18,6 @@ from corporate.lib.stripe import (
     RemoteServerBillingSession,
     ServerDeactivateWithExistingPlanError,
     UpdatePlanRequest,
-    do_deactivate_remote_server,
 )
 from corporate.models import CustomerPlan, get_current_plan_by_customer, get_customer_by_realm
 from zerver.decorator import process_as_post, require_billing_access, zulip_login_required
@@ -338,7 +337,7 @@ def remote_server_deactivate_page(
         raise JsonableError(_("Parameter 'confirmed' is required"))
 
     try:
-        do_deactivate_remote_server(remote_server, billing_session)
+        billing_session.do_deactivate_billing_entity()
     except ServerDeactivateWithExistingPlanError:  # nocoverage
         context["show_existing_plan_error"] = "true"
         return render(

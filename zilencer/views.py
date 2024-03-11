@@ -34,7 +34,6 @@ from corporate.lib.stripe import (
     BILLING_SUPPORT_EMAIL,
     RemoteRealmBillingSession,
     RemoteServerBillingSession,
-    do_deactivate_remote_server,
     get_push_status_for_remote_request,
 )
 from corporate.models import (
@@ -119,7 +118,7 @@ def deactivate_remote_server(
     remote_server: RemoteZulipServer,
 ) -> HttpResponse:
     billing_session = RemoteServerBillingSession(remote_server)
-    do_deactivate_remote_server(remote_server, billing_session)
+    billing_session.do_deactivate_billing_entity()
     return json_success(request)
 
 
