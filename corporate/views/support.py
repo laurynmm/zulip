@@ -33,7 +33,6 @@ from zerver.actions.realm_settings import (
     do_change_realm_max_invites,
     do_change_realm_org_type,
     do_change_realm_plan_type,
-    do_deactivate_realm,
     do_scrub_realm,
     do_send_realm_reactivation_email,
 )
@@ -552,6 +551,9 @@ def support(
                 )
                 return HttpResponseRedirect(reverse("support", query={"q": new_subdomain}))
         elif status is not None:
+            realm_status_billing_session = RealmBillingSession(
+                user=acting_user, realm=realm, support_session=True
+            )
             if status == "active":
                 do_send_realm_reactivation_email(realm, acting_user=acting_user)
                 context["success_message"] = (
@@ -560,12 +562,7 @@ def support(
             elif status == "deactivated":
                 # TODO: Add support for deactivation reason in the support UI that'll be passed
                 # here.
-                do_deactivate_realm(
-                    realm,
-                    acting_user=acting_user,
-                    deactivation_reason="owner_request",
-                    email_owners=True,
-                )
+                realm_status_billing_session.do_deactivate_billing_entity()
                 context["success_message"] = f"{realm.string_id} deactivated."
         elif scrub_realm:
             do_scrub_realm(realm, acting_user=acting_user)
@@ -877,7 +874,7 @@ def remote_servers_support(
             else:
                 assert remote_server_status == "deactivated"
                 try:
-                    do_deactivate_remote_server(remote_server, remote_server_status_billing_session)
+                    remote_server_status_billing_session.do_deactivate_billing_entity()
                     context["success_message"] = (
                         f"Remote server ({remote_server.hostname}) deactivated."
                     )

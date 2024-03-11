@@ -50,7 +50,6 @@ from corporate.lib.stripe import (
     compute_plan_parameters,
     customer_has_credit_card_as_default_payment_method,
     customer_has_last_n_invoices_open,
-    do_deactivate_remote_server,
     do_reactivate_remote_server,
     downgrade_small_realms_behind_on_payments_as_needed,
     get_latest_seat_count,
@@ -5661,7 +5660,7 @@ class BillingHelpersTest(ZulipTestCase):
         self.assertFalse(remote_server.deactivated)
 
         billing_session = RemoteServerBillingSession(remote_server)
-        do_deactivate_remote_server(remote_server, billing_session)
+        billing_session.do_deactivate_billing_entity()
 
         remote_server = RemoteZulipServer.objects.get(uuid=server_uuid)
         remote_realm_audit_log = RemoteZulipServerAuditLog.objects.filter(
@@ -5672,7 +5671,7 @@ class BillingHelpersTest(ZulipTestCase):
 
         # Try to deactivate a remote server that is already deactivated
         with self.assertLogs("corporate.stripe", "WARN") as warning_log:
-            do_deactivate_remote_server(remote_server, billing_session)
+            billing_session.do_deactivate_billing_entity()
             self.assertEqual(
                 warning_log.output,
                 [
