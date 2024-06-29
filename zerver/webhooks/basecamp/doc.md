@@ -1,20 +1,39 @@
-Zulip supports integration with Basecamp and can notify you of
-events in Basecamp.
+# Zulip Basecamp integration
+
+Receive notifications about Basecamp events in Zulip!
+
+{start_tabs}
 
 1. {!create-channel.md!}
 
 1. {!create-an-incoming-webhook.md!}
 
-1. {!generate-integration-url.md!}
+1. {!generate-webhook-url-basic.md!}
 
-1. Go to your project on Basecamp. From the **Settings** menu in
-   the top right corner, choose **Set up webhooks**. Click on
-   **Add a new webhook**.
+1. Go to your project on Basecamp, and toggle the **Settings** menu in
+   the top right corner.
 
-1. Set **Payload URL** to the URL constructed above. Select the events
-   you would like to be notified about, and check the checkbox under
-   **Enable this webhook**. Click **Add this webhook**.
+1. Select **Set up webhooks**, and then select **Add a new webhook**.
+
+1. Set **Payload URL** to the URL generated above.
+
+1. Select the events you would like to be notified about, and toggle the
+   checkbox under **Enable this webhook**.
+
+1. Select **Add this webhook**.
+
+{end_tabs}
 
 {!congrats.md!}
 
 ![](/static/images/integrations/basecamp/001.png)
+
+{% if all_event_types is defined %}
+
+{!event-filtering-additional-feature.md!}
+
+{% endif %}
+
+### Related documentation
+
+{!webhooks-url-specification.md!}
