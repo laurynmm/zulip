@@ -4469,7 +4469,7 @@ class UserSignUpTest(ZulipTestCase):
     def test_dev_user_registration(self) -> None:
         """Verify that /devtools/register_user creates a new user, logs them
         in, and redirects to the logged-in app."""
-        count = UserProfile.objects.count()
+        count = UserProfile.objects.filter(is_bot=False).count()
         email = f"user-{count}@zulip.com"
 
         result = self.client_post("/devtools/register_user/")
@@ -4483,7 +4483,7 @@ class UserSignUpTest(ZulipTestCase):
 
     @override_settings(TERMS_OF_SERVICE_VERSION=None)
     def test_dev_user_registration_create_realm(self) -> None:
-        count = UserProfile.objects.count()
+        count = Realm.objects.count()
         string_id = f"realm-{count}"
 
         result = self.client_post("/devtools/register_realm/")

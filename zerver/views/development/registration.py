@@ -46,9 +46,9 @@ def register_development_user(request: HttpRequest) -> HttpResponse:
             status=307,
         )
 
-    count = UserProfile.objects.count()
-    name = f"user-{count}"
-    email = f"{name}@zulip.com"
+    count = UserProfile.objects.filter(is_bot=False).count()
+    name = f"User {count}"
+    email = f"user-{count}@zulip.com"
     prereg = create_preregistration_user(email, realm, password_required=False)
     activation_url = create_confirmation_link(prereg, Confirmation.USER_REGISTRATION)
     key = activation_url.split("/")[-1]
@@ -60,10 +60,13 @@ def register_development_user(request: HttpRequest) -> HttpResponse:
 
 @csrf_exempt
 def register_development_realm(request: HttpRequest) -> HttpResponse:
-    count = UserProfile.objects.count()
-    name = f"user-{count}"
-    email = f"{name}@zulip.com"
-    realm_name = f"realm-{count}"
+    # Organization owner information
+    user_count = UserProfile.objects.filter(is_bot=False).count()
+    name = f"Owner {user_count}"
+    email = f"owner-{user_count}@zulip.com"
+    # Organization information
+    realm_count = Realm.objects.count()
+    realm_name = f"realm-{realm_count}"
     realm_type = Realm.ORG_TYPES["business"]["id"]
     realm_default_language = "en"
     realm_subdomain = realm_name
