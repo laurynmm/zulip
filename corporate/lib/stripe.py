@@ -53,6 +53,7 @@ from zerver.lib.send_email import (
 )
 from zerver.lib.timestamp import datetime_to_timestamp, timestamp_to_datetime
 from zerver.lib.url_encoding import append_url_query_string
+from zerver.lib.user_counts import realm_user_count
 from zerver.lib.utils import assert_is_not_none
 from zerver.models import Realm, RealmAuditLog, Stream, UserProfile
 from zerver.models.realm_audit_logs import AuditLogEventType
@@ -4083,7 +4084,9 @@ class RealmBillingSession(BillingSession):
         if not background_update:
             acting_user = self.user
 
+        old_value = self.realm.plan_type
         do_change_realm_plan_type(self.realm, plan_type, acting_user=acting_user)
+        self.send_realm_plan_change_internal_admin_message(old_value, plan_type)
 
     @override
     def process_downgrade(self, plan: CustomerPlan, background_update: bool = False) -> None:
@@ -4094,11 +4097,12 @@ class RealmBillingSession(BillingSession):
             acting_user = self.user
 
         assert plan.customer.realm is not None
-        do_change_realm_plan_type(
-            plan.customer.realm, Realm.PLAN_TYPE_LIMITED, acting_user=acting_user
-        )
+        old_plan = self.realm.plan_type
+        new_plan = Realm.PLAN_TYPE_LIMITED
+        do_change_realm_plan_type(plan.customer.realm, new_plan, acting_user=acting_user)
         plan.status = CustomerPlan.ENDED
         plan.save(update_fields=["status"])
+        self.send_realm_plan_change_internal_admin_message(old_plan, new_plan)
 
     @override
     def approve_sponsorship(self) -> str:
@@ -4274,6 +4278,28 @@ class RealmBillingSession(BillingSession):
         organization_type = get_org_type_display_name(self.realm.org_type)
         message = f"[{self.realm.name}]({support_url}) ([{self.realm.display_subdomain}]({self.realm.url})). Organization type: {organization_type}"
         self.send_support_admin_realm_internal_message(channel, topic, message)
+
+    def send_realm_plan_change_internal_admin_message(self, old_plan: int, new_plan: int) -> None:
+        from corporate.views.support import get_plan_type_string
+
+        user_count = realm_user_count(self.realm)
+
+        # When an organization is registered on Zulip Cloud the default plan type
+        # is changed from self-hosted to limited before the first user is registered.
+        # We only want to send this notification message for subsequent changes to
+        # the organization's plan type.
+        if user_count > 0:
+            support_url = self.support_url()
+            organization_type = get_org_type_display_name(self.realm.org_type)
+            old_plan_name = get_plan_type_string(old_plan)
+            new_plan_name = get_plan_type_string(new_plan)
+
+            message = (
+                f"[{self.realm.name}]({support_url}) ({organization_type}) with {user_count} users "
+                f"has changed from {old_plan_name} to {new_plan_name}."
+            )
+            topic = f"{self.realm.name}: plan change"
+            self.send_support_admin_realm_internal_message(topic, message)
 
 
 class RemoteRealmBillingSession(BillingSession):
