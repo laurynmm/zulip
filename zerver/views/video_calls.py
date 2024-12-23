@@ -2,7 +2,8 @@ import hashlib
 import json
 import random
 import secrets
-from base64 import b32encode
+from base64 import b32encode, b64encode
+from typing import Any
 from urllib.parse import quote, urlencode, urljoin
 
 import requests
@@ -34,7 +35,7 @@ from zerver.lib.typed_endpoint import typed_endpoint, typed_endpoint_without_par
 from zerver.lib.url_encoding import append_url_query_string
 from zerver.lib.utils import assert_is_not_none
 from zerver.models import UserProfile
-from zerver.models.realms import get_realm
+from zerver.models.realms import Realm, get_realm
 
 
 class VideoCallSession(OutgoingSession):
@@ -152,6 +153,80 @@ def complete_zoom_user_in_realm(
     return render(request, "zerver/close_window.html")
 
 
+def make_user_authenticated_zoom_video_call(
+    request: HttpRequest,
+    user: UserProfile,
+    *,
+    payload: dict[str, Any],
+) -> HttpResponse:
+    oauth = get_zoom_session(user)
+    if not oauth.authorized:
+        raise InvalidZoomTokenError
+
+    try:
+        res = oauth.post("https://api.zoom.us/v2/users/me/meetings", json=payload)
+    except OAuth2Error:
+        do_set_zoom_token(user, None)
+        raise InvalidZoomTokenError
+
+    if res.status_code == 401:
+        do_set_zoom_token(user, None)
+        raise InvalidZoomTokenError
+    elif not res.ok:
+        raise JsonableError(_("Failed to create Zoom call"))
+
+    return json_success(request, data={"url": res.json()["join_url"]})
+
+
+def get_zoom_server_to_server_access_token(realm: Realm) -> str:
+    if settings.VIDEO_ZOOM_CLIENT_ID is None:
+        raise JsonableError(_("Zoom credentials have not been configured"))
+
+    account_id = settings.VIDEO_ZOOM_ACCOUNT_ID
+    client_id = settings.VIDEO_ZOOM_CLIENT_ID.encode("utf-8")
+    client_secret = str(settings.VIDEO_ZOOM_CLIENT_SECRET).encode("utf-8")
+
+    url = "https://zoom.us/oauth/token"
+    data = {"grant_type": "account_credentials", "account_id": account_id}
+
+    client_information = client_id + b":" + client_secret
+    encoded_client = b64encode(client_information).decode("ascii")
+    headers = {"Host": "zoom.us", "Authorization": f"Basic {encoded_client}"}
+
+    response = VideoCallSession().post(url, data, headers=headers)
+    if not response.ok:
+        # {reason: 'Bad request', error: 'invalid_request'} for invalid account ID
+        # {'reason': 'Invalid client_id or client_secret', 'error': 'invalid_client'}
+        raise JsonableError(_("Failed to create Zoom call"))
+    return response.json()["access_token"]
+
+
+def get_zoom_server_to_server_call(
+    user: UserProfile, access_token: str, payload: dict[str, Any]
+) -> str:
+    email = user.delivery_email
+    url = f"https://api.zoom.us/v2/users/{email}/meetings"
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    response = VideoCallSession().post(url, json=payload, headers=headers)
+    if not response.ok:
+        # {code: 1001, message: "User does not exist: {email}"}
+        # {code: 124, message: "Invalid access token"}
+        # {code: 124, message: "Access token is expired"}
+        raise JsonableError(_("Failed to create Zoom call"))
+    return response.json()["join_url"]
+
+
+def make_server_authenticated_zoom_video_call(
+    request: HttpRequest,
+    user: UserProfile,
+    *,
+    payload: dict[str, Any],
+) -> HttpResponse:
+    access_token = get_zoom_server_to_server_access_token(user.realm)
+    url = get_zoom_server_to_server_call(user, access_token, payload)
+    return json_success(request, data={"url": url})
+
+
 @typed_endpoint
 def make_zoom_video_call(
     request: HttpRequest,
@@ -159,10 +234,6 @@ def make_zoom_video_call(
     *,
     is_video_call: Json[bool] = True,
 ) -> HttpResponse:
-    oauth = get_zoom_session(user)
-    if not oauth.authorized:
-        raise InvalidZoomTokenError
-
     # The meeting host has the ability to configure both their own and
     # participants' default video on/off state for the meeting. That's
     # why when creating a meeting, configure the video on/off default
@@ -181,20 +252,9 @@ def make_zoom_video_call(
         # authentication for all meetings.
         "default_password": True,
     }
-
-    try:
-        res = oauth.post("https://api.zoom.us/v2/users/me/meetings", json=payload)
-    except OAuth2Error:
-        do_set_zoom_token(user, None)
-        raise InvalidZoomTokenError
-
-    if res.status_code == 401:
-        do_set_zoom_token(user, None)
-        raise InvalidZoomTokenError
-    elif not res.ok:
-        raise JsonableError(_("Failed to create Zoom call"))
-
-    return json_success(request, data={"url": res.json()["join_url"]})
+    if settings.VIDEO_ZOOM_ACCOUNT_ID is not None:
+        return make_server_authenticated_zoom_video_call(request, user, payload=payload)
+    return make_user_authenticated_zoom_video_call(request, user, payload=payload)
 
 
 @csrf_exempt
