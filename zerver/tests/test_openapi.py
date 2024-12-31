@@ -925,6 +925,9 @@ class OpenAPIAttributesTest(ZulipTestCase):
                 tag = operation["tags"][0]
                 assert tag in VALID_TAGS
                 for status_code, response in operation["responses"].items():
+                    # print(path)
+                    # print(method)
+                    # print(status_code)
                     schema = response["content"]["application/json"]["schema"]
                     # Validate the documented examples for each event type
                     # in api/get-events for the documented event schemas.
@@ -955,6 +958,8 @@ class OpenAPIAttributesTest(ZulipTestCase):
                         assert "examples" in response["content"]["application/json"]
                         examples = response["content"]["application/json"]["examples"]
                         for example in examples:
+                            # print(examples[example]["description"])
+                            # print(examples[example]["value"])
                             assert validate_against_openapi_schema(
                                 examples[example]["value"], path, method, status_code
                             )
