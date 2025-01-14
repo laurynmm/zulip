@@ -2614,6 +2614,9 @@ class BillingSession(ABC):
             "CustomerPlan": CustomerPlan,
             "billing_frequency": billing_frequency,
             "fixed_price_plan": plan.fixed_price is not None,
+            "fixed_price_plan_end_date": plan.end_date.strftime("%B %d, %Y")
+            if (plan.fixed_price and plan.end_date)
+            else None,
             "price_per_license": price_per_license,
             "is_sponsorship_pending": customer.sponsorship_pending,
             "sponsorship_plan_name": self.get_sponsorship_plan_name(

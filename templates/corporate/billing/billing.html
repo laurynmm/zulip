@@ -67,6 +67,16 @@
                     </div>
                 </div>
                 {% endif %}
+                {% if fixed_price_plan_end_date %}
+                <div class="input-box billing-page-field" id="fixed-price-plan-end-notice-wrapper">
+                    <div id="fixed-price-plan-end-notice" class="not-editable-realm-field">
+                        <i>
+                            Your fixed-price plan ends on <strong>{{ fixed_price_plan_end_date }}</strong>.
+                            You will be contacted by Zulip Sales a couple of months beforehand to discuss plan renewal.
+                        </i>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="input-box billing-page-field org-billing-frequency-wrapper"
                   data-current-billing-frequency="{{ billing_frequency }}"
                   {%if free_trial %}data-free-trial="true"{% endif %}
@@ -226,6 +236,16 @@
                 </div>
                 <div class="input-box billing-page-field">
                     <div class="next-payment-info not-editable-realm-field">
+                        {% if fixed_price_plan %}
+                            This is a fixed-price plan.
+                            {% if renewal_amount %}
+                            {% if charge_automatically %}
+                            Next automatic monthly charge will be on <strong>{{ renewal_date }}</strong>.
+                            {% else %}
+                            Next invoice will be sent on <strong>{{ renewal_date }}</strong>.
+                            {% endif %}
+                            {% endif %}
+                        {% endif %}
                         {% if renewal_amount %}
                             {% if downgrade_at_end_of_cycle %}
                             {% if is_self_hosted_billing %}
@@ -255,9 +275,7 @@
                             {% endif %}
                             {% else %}
                             {% if fixed_price_plan %}
-                            This is a fixed-price plan.
-                            {% endif %}
-                            {% if charge_automatically %}
+                            {% elif charge_automatically %}
                             {% if complimentary_access_plan %}
                             Your plan will automatically upgrade to {{ complimentary_access_next_plan_name }} on {{ complimentary_access_plan_end_date }}.
                             {% else %}
@@ -309,8 +327,6 @@
                             {% endif %}
                             {% endif %}
                         {% elif fixed_price_plan %}
-                            This is a fixed-price plan. Your plan ends on <strong>{{ renewal_date }}</strong>.
-                            You will be contacted by Zulip Sales a couple of months before <strong>{{renewal_date}}</strong> to discuss plan renewal.
                         {% else %}
                             Your plan ends on <strong>{{ renewal_date }}</strong>, and does not renew.
                         {% endif %}
