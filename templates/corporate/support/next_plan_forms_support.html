@@ -12,7 +12,7 @@
     {% endif %}
     <button type="submit" class="support-submit-button">Schedule</button>
 </form>
-{% if not plan_data.current_plan and remote_support_view %}
+{% if not plan_data.current_plan %}
 <form method="POST" class="support-form">
     <b>Configure complimentary access plan:</b><br />
     <i>Once created, the end date for the complimentary access plan can be extended.</i><br />

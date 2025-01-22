@@ -54,6 +54,11 @@
                                     <i class="icon current-plan-icon"></i>
                                     Current plan
                                 </a>
+                                {% elif is_cloud_realm and customer_plan and customer_plan.tier == customer_plan.TIER_CLOUD_COMPLIMENTARY_ACCESS %}
+                                <span class="button current-plan-descriptor" type="button">
+                                    <i class="icon current-plan-icon"></i>
+                                    Zulip Cloud Standard access<br />until {{ customer_plan.end_date.strftime('%d %B, %Y') }}
+                                </span>
                                 {% elif not is_cloud_realm or is_new_customer %}
                                 <a href="/new/" class="button get-started-button">
                                     Create organization
@@ -108,7 +113,8 @@
                                 <a href="/billing/" class="button current-plan-button" type="button">
                                     Sponsorship requested
                                 </a>
-                                {% elif customer_plan and customer_plan.tier != customer_plan.TIER_CLOUD_STANDARD %}
+                                {% elif (is_cloud_realm and customer_plan and customer_plan.tier != customer_plan.TIER_CLOUD_STANDARD)
+                                  and (is_cloud_realm and customer_plan and customer_plan.tier != customer_plan.TIER_CLOUD_COMPLIMENTARY_ACCESS) %}
                                 <a href="mailto:sales@zulip.com" target="_blank" rel="noopener noreferrer" class="button upgrade-button">
                                     Contact sales
                                 </a>

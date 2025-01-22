@@ -99,7 +99,6 @@ def plans_view(request: HttpRequest) -> HttpResponse:
         is_cloud_realm=True,
         sponsorship_url=reverse("sponsorship_request"),
         free_trial_days=get_free_trial_days(False),
-        is_sponsored=realm is not None and realm.plan_type == Realm.PLAN_TYPE_STANDARD_FREE,
     )
     if is_subdomain_root_or_alias(request):
         # If we're on the root domain, we make this link first ask you which organization.
@@ -123,9 +122,22 @@ def plans_view(request: HttpRequest) -> HttpResponse:
             if context.customer_plan is None:
                 # Cloud realms on free tier don't have active customer plan unless they are sponsored.
                 context.on_free_tier = not context.is_sponsored
+                context.is_sponsored = realm.plan_type == Realm.PLAN_TYPE_STANDARD_FREE
             else:
                 context.on_free_trial = is_customer_on_free_trial(context.customer_plan)
-                # TODO implement a complimentary access plan/tier for Zulip Cloud.
+                if context.customer_plan.status == CustomerPlan.SWITCH_PLAN_TIER_AT_PLAN_END:
+                    assert context.customer_plan.end_date is not None
+                    context.scheduled_upgrade_plan = CustomerPlan.objects.get(
+                        customer=customer,
+                        billing_cycle_anchor=context.customer_plan.end_date,
+                        status=CustomerPlan.NEVER_STARTED,
+                    )
+                    # Fixed-price plan renewals have a CustomerPlan.status of
+                    # SWITCH_PLAN_TIER_AT_PLAN_END, so we check to see if there is
+                    # a CustomerPlan.tier change for the scheduled upgrade note.
+                    context.has_scheduled_upgrade = (
+                        context.customer_plan.tier != context.scheduled_upgrade_plan.tier
+                    )
 
     context.is_new_customer = (
         not context.on_free_tier and context.customer_plan is None and not context.is_sponsored

@@ -432,6 +432,10 @@ def support(
     fixed_price: Json[NonNegativeInt] | None = None,
     sent_invoice_id: str | None = None,
     delete_fixed_price_next_plan: Json[bool] = False,
+    complimentary_access_plan: Annotated[
+        str, AfterValidator(lambda x: check_date("complimentary_access_plan", x))
+    ]
+    | None = None,
 ) -> HttpResponse:
     from corporate.lib.stripe import (
         RealmBillingSession,
@@ -508,6 +512,11 @@ def support(
                 support_type=SupportType.configure_fixed_price_plan,
                 fixed_price=fixed_price,
                 sent_invoice_id=sent_invoice_id,
+            )
+        elif complimentary_access_plan is not None:
+            support_view_request = SupportViewRequest(
+                support_type=SupportType.configure_complimentary_access_plan,
+                plan_end_date=complimentary_access_plan,
             )
         elif delete_fixed_price_next_plan:
             support_view_request = SupportViewRequest(

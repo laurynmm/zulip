@@ -1041,8 +1041,7 @@ class BillingSession(ABC):
 
         plan_tier = CustomerPlan.TIER_SELF_HOSTED_LEGACY
         if isinstance(self, RealmBillingSession):
-            # TODO implement a complimentary access plan/tier for Zulip Cloud.
-            return None
+            plan_tier = CustomerPlan.TIER_CLOUD_COMPLIMENTARY_ACCESS
 
         # status = CustomerPlan.ACTIVE means the plan is not scheduled for an upgrade.
         # status = CustomerPlan.SWITCH_PLAN_TIER_AT_PLAN_END means the plan is scheduled for an upgrade.
@@ -1430,12 +1429,6 @@ class BillingSession(ABC):
                     f"Cannot configure a complimentary access plan for {self.billing_entity_display_name} because of current plan."
                 )
         plan_anchor_date = timezone_now()
-        if isinstance(self, RealmBillingSession):
-            # TODO implement a complimentary access plan/tier for Zulip Cloud.
-            raise SupportRequestError(
-                f"Cannot currently configure a complimentary access plan for {self.billing_entity_display_name}."
-            )  # nocoverage
-
         self.create_complimentary_access_plan(plan_anchor_date, plan_end_date)
         return f"Complimentary access plan for {self.billing_entity_display_name} configured to end on {end_date_string}."
 
@@ -3812,8 +3805,7 @@ class BillingSession(ABC):
     ) -> None:
         plan_tier = CustomerPlan.TIER_SELF_HOSTED_LEGACY
         if isinstance(self, RealmBillingSession):  # nocoverage
-            # TODO implement a complimentary access plan/tier for Zulip Cloud.
-            return None
+            plan_tier = CustomerPlan.TIER_CLOUD_COMPLIMENTARY_ACCESS
         customer = self.update_or_create_customer()
 
         complimentary_access_plan_anchor = renewal_date
@@ -3859,7 +3851,7 @@ class BillingSession(ABC):
             extra_data=complimentary_access_plan_params,
         )
 
-        self.do_change_plan_type(tier=CustomerPlan.TIER_SELF_HOSTED_LEGACY, is_sponsored=False)
+        self.do_change_plan_type(tier=plan_tier, is_sponsored=False)
 
     def add_customer_to_community_plan(self) -> None:
         # There is no CustomerPlan for organizations on Zulip Cloud and
@@ -4132,6 +4124,8 @@ class RealmBillingSession(BillingSession):
             plan_type = Realm.PLAN_TYPE_STANDARD
         elif tier == CustomerPlan.TIER_CLOUD_PLUS:
             plan_type = Realm.PLAN_TYPE_PLUS
+        elif tier == CustomerPlan.TIER_CLOUD_COMPLIMENTARY_ACCESS:
+            plan_type = Realm.PLAN_TYPE_STANDARD
         else:
             raise AssertionError("Unexpected tier")
 

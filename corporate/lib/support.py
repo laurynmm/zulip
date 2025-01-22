@@ -334,13 +334,13 @@ def get_plan_data_for_support_view(
                 plan_data.current_plan, timezone_now()
             )
 
+        complimentary_access_plan_tier = CustomerPlan.TIER_SELF_HOSTED_LEGACY
         if isinstance(billing_session, RealmBillingSession):
-            # TODO implement a complimentary access plan/tier for Zulip Cloud.
-            plan_data.is_complimentary_access_plan = False
-        else:
-            plan_data.is_complimentary_access_plan = (
-                plan_data.current_plan.tier == CustomerPlan.TIER_SELF_HOSTED_LEGACY
-            )
+            complimentary_access_plan_tier = CustomerPlan.TIER_CLOUD_COMPLIMENTARY_ACCESS
+        plan_data.is_complimentary_access_plan = (
+            plan_data.current_plan.tier == complimentary_access_plan_tier
+        )
+
         plan_data.has_fixed_price = plan_data.current_plan.fixed_price is not None
         plan_data.is_current_plan_billable = billing_session.check_plan_tier_is_billable(
             plan_tier=plan_data.current_plan.tier

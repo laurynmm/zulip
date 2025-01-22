@@ -18,7 +18,7 @@ from zerver.lib.exceptions import JsonableError
 from zerver.lib.response import json_success
 from zerver.lib.typed_endpoint import typed_endpoint
 from zerver.lib.typed_endpoint_validators import check_int_in
-from zerver.models import UserProfile
+from zerver.models import Realm, UserProfile
 from zilencer.lib.remote_counts import MissingDataError
 from zilencer.models import RemoteRealm, RemoteZulipServer
 
@@ -69,7 +69,10 @@ def billing_page(
     customer = get_customer_by_realm(user.realm)
     if customer is not None and customer.sponsorship_pending:
         # Don't redirect to sponsorship page if the realm is on a paid plan
-        if not billing_session.on_paid_plan():
+        if (
+            not billing_session.on_paid_plan()
+            and billing_session.get_complimentary_access_next_plan_name(customer) is None
+        ):
             return HttpResponseRedirect(reverse("sponsorship_request"))
         # If the realm is on a paid plan, show the sponsorship pending message
         context["sponsorship_pending"] = True
@@ -77,7 +80,14 @@ def billing_page(
     if user.realm.plan_type == user.realm.PLAN_TYPE_LIMITED:
         return HttpResponseRedirect(reverse("plans"))
 
-    if customer is None or get_current_plan_by_customer(customer) is None:
+    if (
+        customer is None
+        or get_current_plan_by_customer(customer) is None
+        or (
+            billing_session.get_complimentary_access_next_plan_name(customer) is None
+            and billing_session.realm.plan_type == Realm.PLAN_TYPE_STANDARD_FREE
+        )
+    ):
         return HttpResponseRedirect(reverse("upgrade_page"))
 
     main_context = billing_session.get_billing_page_context()

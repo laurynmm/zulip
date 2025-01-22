@@ -144,6 +144,7 @@ class CustomerPlan(AbstractCustomerPlan):
     # Reserved tier IDs for future use
     TIER_CLOUD_COMMUNITY = 3
     TIER_CLOUD_ENTERPRISE = 4
+    TIER_CLOUD_COMPLIMENTARY_ACCESS = 5
 
     TIER_SELF_HOSTED_BASE = 100
     TIER_SELF_HOSTED_LEGACY = 101
@@ -161,7 +162,10 @@ class CustomerPlan(AbstractCustomerPlan):
         TIER_SELF_HOSTED_ENTERPRISE,
     ]
 
-    COMPLIMENTARY_PLAN_TIERS = [TIER_SELF_HOSTED_LEGACY]
+    COMPLIMENTARY_PLAN_TIERS = [
+        TIER_SELF_HOSTED_LEGACY,
+        TIER_CLOUD_COMPLIMENTARY_ACCESS,
+    ]
 
     ACTIVE = 1
     DOWNGRADE_AT_END_OF_CYCLE = 2
@@ -204,6 +208,7 @@ class CustomerPlan(AbstractCustomerPlan):
             # Complimentary access plans should never be billed through Stripe,
             # so the tier name can exceed the 22 character limit noted above.
             CustomerPlan.TIER_SELF_HOSTED_LEGACY: "Zulip Basic (complimentary)",
+            CustomerPlan.TIER_CLOUD_COMPLIMENTARY_ACCESS: "Zulip Cloud Standard (complimentary)",
         }[tier]
 
     @property
