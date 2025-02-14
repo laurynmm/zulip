@@ -435,7 +435,7 @@ function get_filtered_user_id_list(
         // We want to show subscribers even if they're inactive, if there are few
         // enough subscribers in the channel.
         const stream_id = narrow_state.stream_id();
-        if (stream_id) {
+        if (stream_id && stream_data.get_sub_by_id(stream_id)) {
             const subscribers = peer_data.get_subscribers(stream_id);
             if (subscribers.length <= max_channel_size_to_show_all_subscribers) {
                 const base_user_id_set = new Set([...base_user_id_list, ...subscribers]);
