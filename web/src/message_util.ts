@@ -1,6 +1,7 @@
 import assert from "minimalistic-assert";
 
 import {all_messages_data} from "./all_messages_data.ts";
+import {Filter} from "./filter.ts";
 import * as message_lists from "./message_lists.ts";
 import * as message_store from "./message_store.ts";
 import type {Message} from "./message_store.ts";
@@ -93,6 +94,9 @@ export function get_direct_message_permission_hints(
     // are composing to.
     const dm_conversation = message_lists.current?.data?.filter.operands("dm")[0];
     if (dm_conversation) {
+        if (!Filter.is_valid_filter_term({operator: "dm", operand: dm_conversation})) {
+            return {is_known_empty_conversation: true, is_local_echo_safe: false};
+        }
         const current_user_ids_string = people.emails_strings_to_user_ids_string(dm_conversation);
         assert(current_user_ids_string !== undefined);
         // If it matches and the messages for the current filter are fetched,

@@ -1,6 +1,7 @@
 import assert from "minimalistic-assert";
 
 import * as buddy_data from "./buddy_data.ts";
+import {Filter} from "./filter.ts";
 import * as hash_util from "./hash_util.ts";
 import * as narrow_state from "./narrow_state.ts";
 import * as people from "./people.ts";
@@ -24,7 +25,7 @@ export function get_active_user_ids_string(): string | undefined {
 
     const emails = filter.operands("dm")[0];
 
-    if (!emails) {
+    if (!emails || !Filter.is_valid_filter_term({operator: "dm", operand: emails})) {
         return undefined;
     }
 

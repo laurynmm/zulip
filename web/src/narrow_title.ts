@@ -3,7 +3,7 @@ import assert from "minimalistic-assert";
 
 import {electron_bridge} from "./electron_bridge.ts";
 import * as favicon from "./favicon.ts";
-import type {Filter} from "./filter.ts";
+import {Filter} from "./filter.ts";
 import {$t} from "./i18n.ts";
 import * as inbox_util from "./inbox_util.ts";
 import * as people from "./people.ts";
@@ -52,10 +52,11 @@ export function compute_narrow_title(filter?: Filter): string {
 
     if (filter.has_operator("dm")) {
         const emails = filter.operands("dm")[0]!;
-        const user_ids = people.emails_strings_to_user_ids_string(emails);
-
-        if (user_ids !== undefined) {
-            return people.format_recipients(user_ids, "long");
+        if (Filter.is_valid_filter_term({operator: "dm", operand: emails})) {
+            const user_ids = people.emails_strings_to_user_ids_string(emails);
+            if (user_ids !== undefined) {
+                return people.format_recipients(user_ids, "long");
+            }
         }
         if (emails.includes(",")) {
             return $t({defaultMessage: "Invalid users"});

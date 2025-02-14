@@ -462,6 +462,9 @@ export let show = (raw_terms: NarrowTerm[], show_opts: ShowMessageViewOpts): voi
         return;
     }
 
+    const all_filter_terms_valild = filter._terms.every((term) =>
+        Filter.is_valid_filter_term(term),
+    );
     const coming_from_recent_view = recent_view_util.is_visible();
     const coming_from_inbox = inbox_util.is_visible();
 
@@ -626,9 +629,14 @@ export let show = (raw_terms: NarrowTerm[], show_opts: ShowMessageViewOpts): voi
 
         blueslip.debug("Narrowed", {
             operators: terms.map((e) => e.operator),
+            all_filter_terms_valid: all_filter_terms_valild,
             trigger: opts ? opts.trigger : undefined,
             previous_id: message_lists.current?.selected_id(),
         });
+
+        if (!all_filter_terms_valild) {
+            assert(opts.then_select_id === -1);
+        }
 
         if (opts.then_select_id > 0) {
             // We override target_id in this case, since the user could be
@@ -701,6 +709,12 @@ export let show = (raw_terms: NarrowTerm[], show_opts: ShowMessageViewOpts): voi
             // We may need to scroll to the selected message after swapping
             // the currently displayed center panel to the combined feed.
             message_viewport.maybe_scroll_to_selected();
+        } else if (!all_filter_terms_valild) {
+            select_immediately = false;
+            select_opts = {
+                empty_ok: true,
+                force_rerender: true,
+            };
         } else {
             select_immediately = id_info.local_select_id !== undefined;
             select_opts = {

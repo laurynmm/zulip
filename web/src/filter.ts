@@ -282,6 +282,7 @@ export class Filter {
     _sorted_term_types?: string[] = undefined;
     _predicate?: (message: Message) => boolean;
     _can_mark_messages_read?: boolean;
+    all_terms_valid?: boolean;
     requires_adjustment_for_moved_with_target?: boolean;
     narrow_requires_hash_change: boolean;
     cached_sorted_terms_for_comparison?: string[] | undefined = undefined;
@@ -977,8 +978,49 @@ export class Filter {
         return adjusted_terms;
     }
 
+    static is_valid_filter_term(term: NarrowTerm): boolean {
+        switch (term.operator) {
+            case "has":
+                return ["image", "link", "attachment", "reaction"].includes(term.operand);
+            case "is":
+                return [
+                    "dm",
+                    "starred",
+                    "mentioned",
+                    "alerted",
+                    "unread",
+                    "resolved",
+                    "followed",
+                ].includes(term.operand);
+            case "in":
+                return ["home", "all"].includes(term.operand);
+            case "id":
+            case "near":
+            case "with":
+                return Number.isInteger(Number(term.operand));
+            case "channel":
+                return term.operand !== "";
+            case "channels":
+                return term.operand === "public";
+            case "topic":
+                return true;
+            case "sender":
+            case "dm":
+            case "dm-including":
+                return term.operand
+                    .split(",")
+                    .every((email) => people.get_by_email(email) !== undefined);
+            case "search":
+                return true;
+            default:
+                blueslip.error("Unexpected term operator: " + term.operator);
+                return false;
+        }
+    }
+
     setup_filter(terms: NarrowTerm[]): void {
         this._terms = this.fix_terms(terms);
+        this.all_terms_valid = this._terms.every((term) => Filter.is_valid_filter_term(term));
         this.cached_sorted_terms_for_comparison = undefined;
     }
 
@@ -1432,7 +1474,7 @@ export class Filter {
             const names = emails.map((email) => {
                 const person = people.get_by_email(email);
                 if (!person) {
-                    return email;
+                    return $t({defaultMessage: "Unknown user ({email})"}, {email});
                 }
                 if (muted_users.is_user_muted(person.user_id)) {
                     if (people.should_add_guest_user_indicator(person.user_id)) {
