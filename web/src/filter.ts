@@ -1422,7 +1422,14 @@ export class Filter {
             (term_types.length === 2 && _.isEqual(term_types, ["dm", "with"])) ||
             (term_types.length === 1 && _.isEqual(term_types, ["dm"]))
         ) {
-            const emails = this.operands("dm")[0]!.split(",");
+            const dm_operand = this.operands("dm")[0]!;
+            if (!people.is_valid_direct_message_recipient(dm_operand)) {
+                if (!dm_operand.includes(",")) {
+                    return $t({defaultMessage: "Invalid user"});
+                }
+                return $t({defaultMessage: "Invalid users"});
+            }
+            const emails = dm_operand.split(",");
             if (emails.length === 1) {
                 const user = people.get_by_email(emails[0]!);
                 if (user && people.is_direct_message_conversation_with_self([user.user_id])) {

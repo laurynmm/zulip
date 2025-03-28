@@ -277,7 +277,17 @@ function handle_operators_supporting_id_based_api(narrow_parameter: string): str
 
         const canonical_operator = Filter.canonicalize_operator(raw_term.operator);
 
-        if (operators_supporting_ids.has(canonical_operator)) {
+        // TODO: Move the checks for valid operand values for
+        // users and channels to happen earlier so that we're
+        // not sending what we know are invalid narrow terms
+        // to the server.
+        if (
+            operators_supporting_ids.has(canonical_operator) &&
+            // An invalid user in the narrow term means the operand
+            // is not a string of valid emails, and therefore cannot
+            // be parsed to valid user IDs.
+            people.is_valid_direct_message_recipient(raw_term.operand)
+        ) {
             const user_ids_array = people.emails_strings_to_user_ids_array(raw_term.operand);
             assert(user_ids_array !== undefined);
             narrow_term.operand = user_ids_array;

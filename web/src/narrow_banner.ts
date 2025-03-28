@@ -350,7 +350,7 @@ export function pick_empty_narrow_banner(current_filter: Filter): NarrowBannerDa
             };
         }
         case "dm": {
-            if (!people.is_valid_bulk_emails_for_compose(first_operand.split(","))) {
+            if (!people.is_valid_direct_message_recipient(first_operand)) {
                 if (!first_operand.includes(",")) {
                     return {
                         title: $t({defaultMessage: "This user does not exist!"}),

@@ -1026,8 +1026,10 @@ export function is_valid_email_for_compose(email: string): boolean {
     return true;
 }
 
-export function is_valid_bulk_emails_for_compose(emails: string[]): boolean {
-    // Returns false if at least one of the emails is invalid.
+export function is_valid_direct_message_recipient(operand: string): boolean {
+    const emails = operand.split(",");
+    // Returns false if the operand string is not a comma-separated list
+    // of emails for known and accessible users.
     return emails.every((email) => {
         if (!is_valid_email_for_compose(email)) {
             return false;

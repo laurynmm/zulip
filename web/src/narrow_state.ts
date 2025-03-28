@@ -126,7 +126,7 @@ export function set_compose_defaults(): {
     const private_message_recipient_emails = single.get("dm");
     if (
         private_message_recipient_emails !== undefined &&
-        people.is_valid_bulk_emails_for_compose(private_message_recipient_emails.split(","))
+        people.is_valid_direct_message_recipient(private_message_recipient_emails)
     ) {
         opts.private_message_recipient_ids = people.emails_string_to_user_ids(
             private_message_recipient_emails,
