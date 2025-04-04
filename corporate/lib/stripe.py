@@ -90,6 +90,7 @@ BILLING_SUPPORT_EMAIL = "sales@zulip.com"
 MIN_INVOICED_LICENSES = 30
 MAX_INVOICED_LICENSES = 1000
 DEFAULT_INVOICE_DAYS_UNTIL_DUE = 15
+MIN_CHARGE_IN_CENTS = 100
 
 CARD_CAPITALIZATION = {
     "amex": "American Express",
@@ -1295,6 +1296,58 @@ class BillingSession(ABC):
         assert customer is not None
         assert customer.required_plan_tier is not None
 
+        removing_all_discounts = monthly_discounted_price == 0 and annual_discounted_price == 0
+
+        requires_updating_customer_minimum_licenses = False
+        min_licenses_for_plan = self.min_licenses_for_plan(customer.required_plan_tier)
+        if not removing_all_discounts:
+            if (
+                monthly_discounted_price != 0
+                and monthly_discounted_price * min_licenses_for_plan < MIN_CHARGE_IN_CENTS
+            ):
+                requires_updating_customer_minimum_licenses = True
+            if (
+                annual_discounted_price != 0
+                and annual_discounted_price * min_licenses_for_plan < MIN_CHARGE_IN_CENTS
+            ):
+                requires_updating_customer_minimum_licenses = True
+
+        plan = get_current_plan_by_customer(customer)
+        if requires_updating_customer_minimum_licenses:
+            if plan is not None:
+                if plan.is_complimentary_access_plan():
+                    next_plan = self.get_complimentary_access_next_plan(customer)
+                    if next_plan is not None:
+                        raise SupportRequestError(
+                            f"Cannot configure discount because it requires setting a new minimum licenses, and an upgrade to new plan already scheduled for {self.billing_entity_display_name}."
+                        )
+                else:
+                    raise SupportRequestError(
+                        f"Cannot configure discount because it requires setting a new minimum licenses, and an active plan already exists for {self.billing_entity_display_name}."
+                    )
+            new_min_licenses_for_customer = min_licenses_for_plan
+            if monthly_discounted_price != 0:
+                new_min_licenses_for_customer = math.ceil(
+                    MIN_CHARGE_IN_CENTS / monthly_discounted_price
+                )
+            else:
+                new_min_licenses_for_customer = math.ceil(
+                    MIN_CHARGE_IN_CENTS / annual_discounted_price
+                )
+            previous_minimum_license_count = customer.minimum_licenses
+            customer.minimum_licenses = new_min_licenses_for_customer
+            customer.save(update_fields=["minimum_licenses"])
+
+            self.write_to_audit_log(
+                event_type=BillingSessionEventType.CUSTOMER_PROPERTY_CHANGED,
+                event_time=timezone_now(),
+                extra_data={
+                    "old_value": previous_minimum_license_count,
+                    "new_value": new_min_licenses_for_customer,
+                    "property": "minimum_licenses",
+                },
+            )
+
         old_monthly_discounted_price = customer.monthly_discounted_price
         customer.monthly_discounted_price = monthly_discounted_price
         old_annual_discounted_price = customer.annual_discounted_price
@@ -1310,15 +1363,23 @@ class BillingSession(ABC):
                 "flat_discounted_months",
             ]
         )
-        plan = get_current_plan_by_customer(customer)
-        if plan is not None and plan.tier == customer.required_plan_tier:
+
+        if (
+            plan is not None
+            and plan.tier == customer.required_plan_tier
+            and not requires_updating_customer_minimum_licenses
+        ):
             self.apply_discount_to_plan(plan, customer)
 
         # If the customer is on a complimentary access plan and has scheduled
         # an upgrade, apply discount to that plan if set to required_plan_tier.
         if plan is not None and plan.is_complimentary_access_plan():
             next_plan = self.get_complimentary_access_next_plan(customer)
-            if next_plan is not None and next_plan.tier == customer.required_plan_tier:
+            if (
+                next_plan is not None
+                and next_plan.tier == customer.required_plan_tier
+                and not requires_updating_customer_minimum_licenses
+            ):
                 self.apply_discount_to_plan(next_plan, customer)
 
         self.write_to_audit_log(
