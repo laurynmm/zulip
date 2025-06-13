@@ -1636,7 +1636,7 @@ class RealmIconTest(UploadSerializeMixin, ZulipTestCase):
         self.login("hamlet")
         with get_test_image_file(self.correct_files[0][0]) as fp:
             result = self.client_post("/json/realm/icon", {"file": fp})
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_get_gravatar_icon(self) -> None:
         self.login("hamlet")
@@ -1792,7 +1792,7 @@ class RealmLogoTest(UploadSerializeMixin, ZulipTestCase):
             result = self.client_post(
                 "/json/realm/logo", {"file": fp, "night": orjson.dumps(self.night).decode()}
             )
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_upload_limited_plan_type(self) -> None:
         user_profile = self.example_user("iago")

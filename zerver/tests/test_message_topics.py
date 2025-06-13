@@ -243,7 +243,7 @@ class TopicDeleteTest(ZulipTestCase):
                 "topic_name": topic_name,
             },
         )
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
         self.assertTrue(Message.objects.filter(id=last_msg_id).exists())
 
         # Make stream private with limited history

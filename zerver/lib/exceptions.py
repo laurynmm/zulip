@@ -277,6 +277,7 @@ class InvalidJSONError(JsonableError):
 
 class OrganizationMemberRequiredError(JsonableError):
     code: ErrorCode = ErrorCode.UNAUTHORIZED_PRINCIPAL
+    http_status_code = 403
 
     def __init__(self) -> None:
         pass
@@ -289,6 +290,7 @@ class OrganizationMemberRequiredError(JsonableError):
 
 class OrganizationAdministratorRequiredError(JsonableError):
     code: ErrorCode = ErrorCode.UNAUTHORIZED_PRINCIPAL
+    http_status_code = 403
 
     def __init__(self) -> None:
         pass
@@ -301,6 +303,7 @@ class OrganizationAdministratorRequiredError(JsonableError):
 
 class OrganizationOwnerRequiredError(JsonableError):
     code: ErrorCode = ErrorCode.UNAUTHORIZED_PRINCIPAL
+    http_status_code = 403
 
     def __init__(self) -> None:
         pass

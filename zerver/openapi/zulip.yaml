@@ -23626,6 +23626,14 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/UserDeactivatedError"
                   - $ref: "#/components/schemas/RealmDeactivatedError"
+        "403":
+          description: |
+            Forbidden.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OrganizationAdministratorRequiredError"
         "429":
           description: |
             Rate limit exceeded.
@@ -26674,6 +26682,24 @@ components:
 
             A typical failed JSON response for when the user is not authorized for
             a query.
+    OrganizationAdministratorRequiredError:
+      allOf:
+        - $ref: "#/components/schemas/CodedError"
+        - example:
+            {
+              "code": "UNAUTHORIZED_PRINCIPAL",
+              "msg": "Must be an organization administrator",
+              "result": "error",
+            }
+          description: |
+            ## User must be an administrator
+
+            **Changes**: As of Zulip 11.0 (feature level 393), these errors
+            have an HTTP status code of 403. Prior to this feature level,
+            they had an HTTP status code of 400.
+
+            A typical failed JSON response for when the user must be an
+            organization administrator for a query:
     UserDeactivatedError:
       allOf:
         - $ref: "#/components/schemas/CodedError"

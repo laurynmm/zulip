@@ -298,7 +298,7 @@ class PermissionTest(ZulipTestCase):
         self.login("iago")
         with self.capture_send_event_calls(expected_num_events=0):
             result = self.client_patch(f"/json/users/{desdemona.id}", req)
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
     def test_admin_api(self) -> None:
         self.login("desdemona")
@@ -1244,7 +1244,7 @@ class AdminCreateUserTest(ZulipTestCase):
         # can_create_users is insufficient without being a realm administrator:
         do_change_user_role(admin, UserProfile.ROLE_MEMBER, acting_user=None)
         result = self.client_post("/json/users", valid_params)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
         do_change_user_role(admin, UserProfile.ROLE_REALM_ADMINISTRATOR, acting_user=None)
 
@@ -1955,7 +1955,7 @@ class ActivateTest(ZulipTestCase):
 
         # Organization administrator cannot deactivate organization owner.
         result = self.client_delete(f"/json/users/{self.example_user('desdemona').id}")
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         iago = self.example_user("iago")
         desdemona = self.example_user("desdemona")

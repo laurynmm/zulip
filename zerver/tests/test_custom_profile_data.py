@@ -378,9 +378,9 @@ class CreateCustomProfileFieldTest(CustomProfileFieldTestCase):
     def test_not_realm_admin(self) -> None:
         self.login("hamlet")
         result = self.client_post("/json/realm/profile_fields")
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
         result = self.client_delete("/json/realm/profile_fields/1")
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
 
 class DeleteCustomProfileFieldTest(CustomProfileFieldTestCase):
@@ -1283,7 +1283,7 @@ class ReorderCustomProfileFieldTest(CustomProfileFieldTestCase):
         result = self.client_patch(
             "/json/realm/profile_fields", info={"order": orjson.dumps(order).decode()}
         )
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_reorder_invalid(self) -> None:
         self.login("iago")

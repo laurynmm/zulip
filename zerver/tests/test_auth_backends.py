@@ -7524,7 +7524,7 @@ class TestAdminSetBackends(ZulipTestCase):
             "/json/realm",
             {"authentication_methods": orjson.dumps({"Email": False, "Dev": True}).decode()},
         )
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         self.login("desdemona")
         result = self.client_patch(

@@ -108,10 +108,10 @@ class RealmPlaygroundTests(ZulipTestCase):
         hamlet = self.example_user("hamlet")
 
         resp = self.api_post(hamlet, "/api/v1/realm/playgrounds")
-        self.assert_json_error(resp, "Must be an organization administrator")
+        self.assert_json_error(resp, "Must be an organization administrator", status_code=403)
 
         resp = self.api_delete(hamlet, "/api/v1/realm/playgrounds/1")
-        self.assert_json_error(resp, "Must be an organization administrator")
+        self.assert_json_error(resp, "Must be an organization administrator", status_code=403)
 
     def test_delete_realm_playground(self) -> None:
         iago = self.example_user("iago")

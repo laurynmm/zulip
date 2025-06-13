@@ -153,9 +153,9 @@ class RealmFilterTest(ZulipTestCase):
     def test_not_realm_admin(self) -> None:
         self.login("hamlet")
         result = self.client_post("/json/realm/filters")
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
         result = self.client_delete("/json/realm/filters/15")
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_delete(self) -> None:
         self.login("iago")

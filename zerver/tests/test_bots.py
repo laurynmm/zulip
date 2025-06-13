@@ -1319,6 +1319,7 @@ class BotTest(ZulipTestCase, UploadSerializeMixin):
         self.assert_json_error(
             result,
             "Must be an organization owner",
+            status_code=403,
         )
 
         self.logout()
@@ -1505,10 +1506,10 @@ class BotTest(ZulipTestCase, UploadSerializeMixin):
         req = dict(role=UserProfile.ROLE_REALM_OWNER)
 
         result = self.client_patch(f"/json/users/{user_profile.id}", req)
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         result = self.client_patch(f"/json/bots/{user_profile.id}", req)
-        self.assert_json_error(result, "Must be an organization owner")
+        self.assert_json_error(result, "Must be an organization owner", status_code=403)
 
         # Test for not allowing a non-administrator user to assign a bot an administrator role
         shiva = self.example_user("shiva")
@@ -1519,10 +1520,10 @@ class BotTest(ZulipTestCase, UploadSerializeMixin):
         req = dict(role=UserProfile.ROLE_REALM_ADMINISTRATOR)
 
         result = self.client_patch(f"/json/users/{user_profile.id}", req)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
         result = self.client_patch(f"/json/bots/{user_profile.id}", req)
-        self.assert_json_error(result, "Must be an organization administrator")
+        self.assert_json_error(result, "Must be an organization administrator", status_code=403)
 
     def test_patch_bot_to_stream_private_allowed(self) -> None:
         self.login("hamlet")
