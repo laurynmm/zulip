@@ -258,7 +258,7 @@ type ActiveUserData = {
 };
 
 // SUMMARY STATISTICS
-function get_user_summary_statistics(data: ActiveUserData): void {
+function get_user_summary_statistics(data: ActiveUserData, realm_imported: boolean): void {
     if (Object.keys(data).length === 0) {
         return;
     }
@@ -276,6 +276,14 @@ function get_user_summary_statistics(data: ActiveUserData): void {
 
     $("#id_active_fifteen_day_users").text(active_fifteen_day_users_string);
     $("#id_active_fifteen_day_users").closest("summary-stats").show();
+
+    if (realm_imported) {
+        const imported_realm_user_note = $t({
+            defaultMessage: "Only users who've logged into their Zulip account are counted.",
+        });
+        $("#id_imported_realm_users_note").text(imported_realm_user_note);
+        $("#id_imported_realm_users_note").closest("summary-stats").show();
+    }
 }
 
 function get_total_messages_sent(data: DataByUserType<number[]>): void {
@@ -1101,7 +1109,7 @@ function populate_number_of_users(raw_data: unknown): void {
     // Initial drawing of plot
     draw_or_update_plot(all_time_trace);
     $("#all_time_actives_button").addClass("selected");
-    get_user_summary_statistics(data.everyone);
+    get_user_summary_statistics(data.everyone, page_params.realm_imported);
 }
 
 function populate_messages_read_over_time(raw_data: unknown): void {

@@ -36,6 +36,7 @@ from zerver.lib.streams import access_stream_by_id
 from zerver.lib.timestamp import convert_to_UTC
 from zerver.lib.typed_endpoint import PathOnly, typed_endpoint
 from zerver.models import Client, Realm, Stream, UserProfile
+from zerver.models.realm_audit_logs import AuditLogEventType, RealmAuditLog
 from zerver.models.realms import get_realm
 
 if settings.ZILENCER_ENABLED:
@@ -64,6 +65,9 @@ def render_stats(
             realm=realm, is_active=True, is_bot=False, role=UserProfile.ROLE_GUEST
         ).count()
         space_used = realm.currently_used_upload_space_bytes()
+        realm_imported = RealmAuditLog.objects.filter(
+            realm=realm, event_type=AuditLogEventType.REALM_IMPORTED
+        ).exists()
         if title:
             pass
         else:
@@ -72,6 +76,7 @@ def render_stats(
         assert title
         guest_users = None
         space_used = None
+        realm_imported = False
 
     request_language = get_and_set_request_language(
         request,
@@ -85,6 +90,7 @@ def render_stats(
         data_url_suffix=data_url_suffix,
         upload_space_used=space_used,
         guest_users=guest_users,
+        realm_imported=realm_imported,
         translation_data=get_language_translation_data(request_language),
     )
 

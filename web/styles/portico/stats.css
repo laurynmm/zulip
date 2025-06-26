@@ -32,11 +32,16 @@ p {
     padding: 20px;
     border: 2px solid hsl(0deg 0% 93%);
     background-color: hsl(0deg 0% 100%);
-    width: 395px;
+    width: fit-content;
 
     & h1 {
         margin-top: 0;
         font-size: 1.5em;
+    }
+
+    & #id_imported_realm_users_note {
+        font-size: 0.9em;
+        font-style: italic;
     }
 }
 

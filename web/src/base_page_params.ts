@@ -58,6 +58,7 @@ const stats_params_schema = default_params_schema.extend({
     data_url_suffix: z.string(),
     upload_space_used: z.nullable(z.number()),
     guest_users: z.nullable(z.number()),
+    realm_imported: z.boolean(),
     translation_data: z.record(z.string()),
 });
 
