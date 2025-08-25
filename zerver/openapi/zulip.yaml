@@ -23638,12 +23638,20 @@ paths:
       operationId: create-channel
       summary: Create a channel
       description: |
-        Create a new [channel](/help/create-channels) and optionally
-        subscribe users to the newly created channel. The initial [channel settings](/api/update-stream)
-        will be determined by the optional parameters, like `invite_only`, detailed below.
+        Create a new [channel](/help/create-channels), and optionally subscribe
+        users to the newly created channel.
 
-        **Changes**: New in Zulip 11.0 (feature level 417). Previously, this was only possible via
-        the [`POST /api/subscribe`](/api/subscribe) endpoint, which handled both creation and subscription.
+        The initial [channel settings](/api/update-stream) will be determined by
+        the optional parameters, like `invite_only`, detailed below.
+
+        **Changes**: In Zulip 12.0 (feature level ZF-ee485d), removed the
+        `send_new_subscription_messages` parameter from this endpoint because
+        Notification Bot DMs are never sent to users who are subscribed to a
+        channel during the channel creation process.
+
+        New in Zulip 11.0 (feature level 417). Previously, this was only possible
+        via the [`POST /api/subscribe`](/api/subscribe) endpoint, which handles
+        both channel creation and subscription.
       x-curl-examples-parameters:
         oneOf:
           - type: include
@@ -23730,8 +23738,6 @@ paths:
                   example: true
                 folder_id:
                   $ref: "#/components/schemas/FolderId"
-                send_new_subscription_messages:
-                  $ref: "#/components/schemas/SendNewSubscriptionMessages"
                 topics_policy:
                   $ref: "#/components/schemas/TopicsPolicy"
                 history_public_to_subscribers:
