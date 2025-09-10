@@ -155,8 +155,9 @@ class RealmDetailsForm(forms.Form):
         )
 
     def clean_realm_subdomain(self) -> str:
-        if not self.realm_creation:
-            # This field is only used if realm_creation
+        if not self.realm_creation or self.is_demo_organization:
+            # This field is only used when creating a permanent
+            # organization.
             return ""
 
         subdomain = self.cleaned_data["realm_subdomain"]
