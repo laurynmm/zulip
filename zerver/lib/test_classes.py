@@ -895,7 +895,6 @@ Output:
         realm_default_language: str = "en",
         enable_marketing_emails: bool | None = None,
         email_address_visibility: int | None = None,
-        is_demo_organization: bool = False,
         **extra: str,
     ) -> "TestHttpResponse":
         """
@@ -920,7 +919,6 @@ Output:
             "from_confirmation": from_confirmation,
             "default_stream_group": default_stream_groups,
             "source_realm_id": source_realm_id,
-            "is_demo_organization": is_demo_organization,
             "how_realm_creator_found_zulip": "other",
             "how_realm_creator_found_zulip_extra_context": "I found it on the internet.",
         }
@@ -955,6 +953,7 @@ Output:
         realm_in_root_domain: str | None = None,
         captcha: str | None = None,
         import_from: str = "none",
+        create_demo: bool = False,
     ) -> "TestHttpResponse":
         payload = {
             "email": email,
@@ -963,6 +962,7 @@ Output:
             "realm_default_language": realm_default_language,
             "realm_subdomain": realm_subdomain,
             "import_from": import_from,
+            "create_demo": create_demo,
         }
         if captcha is not None:
             payload["captcha"] = captcha
