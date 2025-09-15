@@ -338,7 +338,9 @@ class ImportRealmOwnerSelectionForm(forms.Form):
 
 class RealmCreationForm(RealmDetailsForm):
     # This form determines whether users can create a new realm.
-    email = forms.EmailField(validators=[email_not_system_bot, email_is_not_disposable])
+    email = forms.EmailField(
+        validators=[email_not_system_bot, email_is_not_disposable], required=False
+    )
     import_from = forms.ChoiceField(
         choices=PreregistrationRealm.IMPORT_FROM_CHOICES,
         required=False,
@@ -347,6 +349,21 @@ class RealmCreationForm(RealmDetailsForm):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["realm_creation"] = True
         super().__init__(*args, **kwargs)
+
+    @override
+    def clean(self) -> None:
+        super().clean()
+
+        # Checking for a valid email address depends on the value of
+        # the cleaned `create_demo` field. If the user is creating a
+        # demo organization, then there is no email address to validate
+        # from user input during the registration process. Otherwise,
+        # we need to check that the cleaned user input for `email`
+        # returned a validated email address.
+        create_demo = self.cleaned_data.get("create_demo", False)
+        email = self.cleaned_data.get("email", "")
+        if not create_demo and not email:
+            raise ValidationError(_("Please use your real email address."))
 
     def clean_import_from(self) -> str:
         # Convert "" to "none".

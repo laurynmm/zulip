@@ -956,7 +956,6 @@ Output:
         create_demo: bool = False,
     ) -> "TestHttpResponse":
         payload = {
-            "email": email,
             "realm_name": realm_name,
             "realm_type": realm_type,
             "realm_default_language": realm_default_language,
@@ -964,6 +963,8 @@ Output:
             "import_from": import_from,
             "create_demo": create_demo,
         }
+        if not create_demo:
+            payload["email"] = email
         if captcha is not None:
             payload["captcha"] = captcha
         if realm_in_root_domain is not None:

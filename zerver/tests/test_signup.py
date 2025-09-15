@@ -1800,14 +1800,11 @@ class RealmCreationTest(ZulipTestCase):
 
     @override_settings(OPEN_REALM_CREATION=True)
     def test_create_education_demo_organization_welcome_bot_direct_message(self) -> None:
-        # TODO: Update test for realistic demo organization form data,
-        # e.g., no email address for owner.
-        email = "user1@test.com"
         realm_name = "demo education test"
 
         # Create new demo organization.
         result = self.submit_realm_creation_form(
-            email,
+            email="",
             realm_subdomain="",
             realm_name=realm_name,
             realm_type=Realm.ORG_TYPES["education"]["id"],
@@ -1826,8 +1823,9 @@ class RealmCreationTest(ZulipTestCase):
         self.assert_in_response('action="/realm/register/"', result)
 
         result = self.submit_reg_form_for_user(
-            email,
+            email="",
             password="",
+            full_name="Your name",
             realm_subdomain="",
             realm_name=realm_name,
             enable_marketing_emails=False,
