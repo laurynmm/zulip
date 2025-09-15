@@ -1825,12 +1825,12 @@ class RealmCreationTest(ZulipTestCase):
         result = self.submit_reg_form_for_user(
             email="",
             password="",
-            full_name="Your name",
             realm_subdomain="",
             realm_name=realm_name,
             enable_marketing_emails=False,
             realm_type=Realm.ORG_TYPES["education"]["id"],
             key=key,
+            create_demo=True,
         )
         self.assertEqual(result.status_code, 302)
 

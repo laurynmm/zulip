@@ -895,6 +895,7 @@ Output:
         realm_default_language: str = "en",
         enable_marketing_emails: bool | None = None,
         email_address_visibility: int | None = None,
+        create_demo: bool = False,
         **extra: str,
     ) -> "TestHttpResponse":
         """
@@ -905,10 +906,7 @@ Output:
 
         You can pass the HTTP_HOST variable for subdomains via extra.
         """
-        if full_name is None:
-            full_name = email.replace("@", "_")
         payload = {
-            "full_name": full_name,
             "realm_name": realm_name,
             "realm_subdomain": realm_subdomain,
             "realm_type": realm_type,
@@ -921,7 +919,12 @@ Output:
             "source_realm_id": source_realm_id,
             "how_realm_creator_found_zulip": "other",
             "how_realm_creator_found_zulip_extra_context": "I found it on the internet.",
+            "create_demo": create_demo,
         }
+        if not create_demo:
+            if full_name is None:
+                full_name = email.replace("@", "_")
+            payload["full_name"] = full_name
         if enable_marketing_emails is not None:
             payload["enable_marketing_emails"] = enable_marketing_emails
         if email_address_visibility is not None:
