@@ -4,6 +4,7 @@ import PlotlyBar from "plotly.js/lib/bar";
 import Plotly from "plotly.js/lib/core";
 import PlotlyPie from "plotly.js/lib/pie";
 import * as tippy from "tippy.js";
+import UPlot from "uplot";
 import * as z from "zod/mini";
 
 import * as blueslip from "../blueslip.ts";
@@ -1007,104 +1008,129 @@ function populate_number_of_users(raw_data: unknown): void {
         return;
     }
 
-    const weekly_rangeselector = make_rangeselector(
-        {count: 2, label: $t({defaultMessage: "Last 2 months"}), step: "month"},
-        {count: 6, label: $t({defaultMessage: "Last 6 months"}), step: "month"},
-    );
+    const end_times = data.end_times; // Unix timestamps in seconds
+    const container = document.querySelector<HTMLElement>("#id_number_of_users")!;
 
-    const layout: Partial<Plotly.Layout> = {
-        width: 750,
-        height: 370,
-        margin: {l: 40, r: 10, b: 40, t: 0},
-        xaxis: {
-            fixedrange: true,
-            rangeslider: {bordercolor: "#D8D8D8", borderwidth: 1},
-            rangeselector: weekly_rangeselector,
-            tickangle: 0,
-        },
-        yaxis: {fixedrange: true, rangemode: "tozero"},
-        font: font_12pt,
-    };
+    let uplot_instance: UPlot | null = null;
 
-    const end_dates: Date[] = data.end_times.map((timestamp: number) => new Date(timestamp * 1000));
-
-    const text = end_dates.map((date) => format_date(date, false));
-
-    function make_traces(values: Plotly.Datum[], type: Plotly.PlotType): Partial<Plotly.PlotData> {
+    function make_opts(is_bar: boolean): UPlot.Options {
         return {
-            x: end_dates,
-            y: values,
-            type,
-            name: $t({defaultMessage: "Active users"}),
-            hoverinfo: "none",
-            text,
-            visible: true,
+            width: 750,
+            height: 330,
+            scales: {
+                x: {time: true},
+                y: {
+                    range: (_u, _dataMin, dataMax) => [
+                        0,
+                        dataMax === null || dataMax === undefined || dataMax <= 0 ? 1 : dataMax,
+                    ],
+                },
+            },
+            series: [
+                {
+                    label: $t({defaultMessage: "Date"}),
+                    value: "{MMMM} {DD}, {YYYY}",
+                },
+                {
+                    label: $t({defaultMessage: "Users"}),
+                    stroke: "rgb(91, 137, 181)",
+                    ...(is_bar
+                        ? {
+                              fill: "rgba(91, 137, 181, 0.2)",
+                              paths: UPlot.paths.bars!({size: [0.6, 100]}),
+                          }
+                        : {}),
+                    width: 2,
+                    points: {show: false},
+                },
+            ],
+            cursor: {y: false},
         };
     }
 
-    function add_hover_handler(): void {
-        document
-            .querySelector<Plotly.PlotlyHTMLElement>("#id_number_of_users")!
-            .on("plotly_hover", (data) => {
-                $("#users_hover_info").show();
-                document.querySelector("#users_hover_date")!.textContent =
-                    data.points[0]!.data.text[data.points[0]!.pointNumber]!;
-                const values: Plotly.Datum[] = [null, null, null];
-                for (const trace of data.points) {
-                    values[trace.curveNumber] = trace.y;
-                }
-                const hover_value_ids = [
-                    "#users_hover_1day_value",
-                    "#users_hover_15day_value",
-                    "#users_hover_all_time_value",
-                ];
-                for (const [i, value] of values.entries()) {
-                    if (value !== null) {
-                        document.querySelector<HTMLElement>(hover_value_ids[i]!)!.style.display =
-                            "inline";
-                        document.querySelector(hover_value_ids[i]!)!.textContent = value.toString();
-                    } else {
-                        document.querySelector<HTMLElement>(hover_value_ids[i]!)!.style.display =
-                            "none";
-                    }
-                }
-            });
+    function to_uplot_data(values: Plotly.Datum[]): UPlot.AlignedData {
+        return [new Float64Array(end_times), new Float64Array(values.map(Number))];
     }
 
-    const _1day_trace = make_traces(data.everyone._1day, "bar");
-    const _15day_trace = make_traces(data.everyone._15day, "scatter");
-    const all_time_trace = make_traces(data.everyone.all_time, "scatter");
+    const _1day_data = to_uplot_data(data.everyone._1day);
+    const _15day_data = to_uplot_data(data.everyone._15day);
+    const all_time_data = to_uplot_data(data.everyone.all_time);
 
-    $("#id_number_of_users > div").removeClass("spinner");
+    function draw_plot(is_bar: boolean, uplot_data: UPlot.AlignedData): void {
+        if (uplot_instance === null) {
+            // First draw: clear the loading spinner.
+            container.innerHTML = "";
+        } else {
+            uplot_instance.destroy();
+        }
+        uplot_instance = new UPlot(make_opts(is_bar), uplot_data, container);
+    }
 
-    // Redraw the plot every time for simplicity. If we have perf problems with this in the
-    // future, we can copy the update behavior from populate_messages_sent_over_time
-    function draw_or_update_plot(trace: Plotly.Data): void {
+    function apply_range(months: number | null): void {
+        if (uplot_instance === null) {
+            return;
+        }
+        const max = end_times.at(-1) ?? 0;
+        if (months === null) {
+            uplot_instance.setScale("x", {min: end_times[0] ?? 0, max});
+        } else {
+            const min_date = new Date(max * 1000);
+            min_date.setMonth(min_date.getMonth() - months);
+            uplot_instance.setScale("x", {min: min_date.getTime() / 1000, max});
+        }
+    }
+
+    $("#users_2month_button").on("click", function () {
+        $("#users_2month_button, #users_6month_button, #users_all_time_range_button").removeClass(
+            "selected",
+        );
+        $(this).addClass("selected");
+        apply_range(2);
+    });
+
+    $("#users_6month_button").on("click", function () {
+        $("#users_2month_button, #users_6month_button, #users_all_time_range_button").removeClass(
+            "selected",
+        );
+        $(this).addClass("selected");
+        apply_range(6);
+    });
+
+    $("#users_all_time_range_button").on("click", function () {
+        $("#users_2month_button, #users_6month_button, #users_all_time_range_button").removeClass(
+            "selected",
+        );
+        $(this).addClass("selected");
+        apply_range(null);
+    });
+
+    $("#1day_actives_button").on("click", function () {
         $("#1day_actives_button, #15day_actives_button, #all_time_actives_button").removeClass(
             "selected",
         );
-        void Plotly.newPlot("id_number_of_users", [trace], layout, {displayModeBar: false});
-        add_hover_handler();
-    }
-
-    $("#1day_actives_button").on("click", function () {
-        draw_or_update_plot(_1day_trace);
         $(this).addClass("selected");
+        draw_plot(true, _1day_data);
     });
 
     $("#15day_actives_button").on("click", function () {
-        draw_or_update_plot(_15day_trace);
+        $("#1day_actives_button, #15day_actives_button, #all_time_actives_button").removeClass(
+            "selected",
+        );
         $(this).addClass("selected");
+        draw_plot(false, _15day_data);
     });
 
     $("#all_time_actives_button").on("click", function () {
-        draw_or_update_plot(all_time_trace);
+        $("#1day_actives_button, #15day_actives_button, #all_time_actives_button").removeClass(
+            "selected",
+        );
         $(this).addClass("selected");
+        draw_plot(false, all_time_data);
     });
 
     // Initial drawing of plot
-    draw_or_update_plot(all_time_trace);
-    $("#all_time_actives_button").addClass("selected");
+    draw_plot(false, all_time_data);
+    $("#all_time_actives_button, #users_all_time_range_button").addClass("selected");
     get_user_summary_statistics(data.everyone);
 }
 

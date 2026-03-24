@@ -45,12 +45,12 @@
                     <div id="id_number_of_users">
                         <div class="spinner"></div>
                     </div>
-                    <div id="users_hover_info">
-                        <span id="users_hover_date"></span>
-                        <b id="users_hover_humans">{{ _("Users") }}: </b>
-                        <span id="users_hover_1day_value"></span>
-                        <span id="users_hover_15day_value"></span>
-                        <span id="users_hover_all_time_value"></span>
+                    <div class="button-container" id="users_range_selector">
+                        <div class="buttons">
+                            <button class="button" type="button" id="users_2month_button">{{ _("Last 2 months") }}</button>
+                            <button class="button" type="button" id="users_6month_button">{{ _("Last 6 months") }}</button>
+                            <button class="button" type="button" id="users_all_time_range_button">{{ _("All time") }}</button>
+                        </div>
                     </div>
                 </div>
                 <div class="chart-container">

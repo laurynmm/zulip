@@ -151,7 +151,6 @@ p {
 }
 
 #id_number_of_users {
-    height: 370px;
     width: 750px;
     position: relative;
 }
@@ -167,6 +166,14 @@ p {
     float: right;
     font-size: 0.8em;
     font-weight: 400;
+}
+
+.u-legend {
+    font-size: 0.8em;
+    font-weight: 400;
+    float: right;
+    height: 0;
+    top: -25px;
 }
 
 #users_hover_info,

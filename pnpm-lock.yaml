@@ -297,6 +297,9 @@ importers:
       turndown:
         specifier: ^7.0.0
         version: 7.2.4
+      uplot:
+        specifier: ^1.6.31
+        version: 1.6.32
       uri-template-lite:
         specifier: ^23.4.0
         version: 23.4.0
@@ -9506,6 +9509,9 @@ packages:
 
   update-diff@1.1.0:
     resolution: {integrity: sha512-rCiBPiHxZwT4+sBhEbChzpO5hYHjm91kScWgdHf4Qeafs6Ba7MBl+d9GlGv72bcTZQO0sLmtQS1pHSWoCLtN/A==}
+
+  uplot@1.6.32:
+    resolution: {integrity: sha512-KIMVnG68zvu5XXUbC4LQEPnhwOxBuLyW1AHtpm6IKTXImkbLgkMy+jabjLgSLMasNuGGzQm/ep3tOkyTxpiQIw==}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -21150,6 +21156,8 @@ snapshots:
       picocolors: 1.1.1
 
   update-diff@1.1.0: {}
+
+  uplot@1.6.32: {}
 
   uri-js@4.4.1:
     dependencies:

@@ -88,6 +88,7 @@
     "textarea-caret": "^3.1.0",
     "tippy.js": "^6.3.7",
     "turndown": "^7.0.0",
+    "uplot": "^1.6.31",
     "uri-template-lite": "^23.4.0",
     "url-loader": "^4.1.1",
     "webfonts-loader": "^8.0.0",
