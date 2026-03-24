@@ -4,6 +4,7 @@ import PlotlyBar from "plotly.js/lib/bar";
 import Plotly from "plotly.js/lib/core";
 import PlotlyPie from "plotly.js/lib/pie";
 import * as tippy from "tippy.js";
+import UPlot from "uplot";
 import * as z from "zod/mini";
 
 import * as blueslip from "../blueslip.ts";
@@ -121,6 +122,10 @@ const font_12pt = {
     size: 12,
     color: "#000000",
 };
+
+// Shared width for all charts on the stats page; matches the
+// `width: 750px` rules in stats.css.
+const CHART_WIDTH = 750;
 
 let last_full_update = Number.POSITIVE_INFINITY;
 
@@ -388,7 +393,7 @@ function populate_messages_sent_over_time(raw_data: unknown): void {
 
     const layout: Partial<Plotly.Layout> = {
         barmode: "group",
-        width: 750,
+        width: CHART_WIDTH,
         height: 400,
         margin: {l: 40, r: 10, b: 40, t: 0},
         xaxis: {
@@ -716,7 +721,7 @@ function populate_messages_sent_by_client(raw_data: unknown): void {
     };
 
     const layout: Partial<Plotly.Layout> = {
-        width: 750,
+        width: CHART_WIDTH,
         // height set in draw_plot()
         margin: {l: 10, r: 10, b: 40, t: 10},
         font: font_14pt,
@@ -878,7 +883,7 @@ function populate_messages_sent_by_message_type(raw_data: unknown): void {
 
     const layout = {
         margin: {l: 90, r: 0, b: 10, t: 0},
-        width: 750,
+        width: CHART_WIDTH,
         height: 300,
         legend: {
             font: font_14pt,
@@ -999,6 +1004,161 @@ function populate_messages_sent_by_message_type(raw_data: unknown): void {
     });
 }
 
+type Ranger = {
+    set_range: (min: number, max: number) => void;
+    update_data: (new_data: UPlot.AlignedData) => void;
+    destroy: () => void;
+};
+
+function make_ranger(
+    ranger_container: HTMLElement,
+    initial_data: UPlot.AlignedData,
+    data_min: number,
+    data_max: number,
+    width: number,
+    stroke: string,
+    fill: string,
+    on_range_change: (range_min: number, range_max: number) => void,
+): Ranger {
+    const overlay = ranger_container.querySelector<HTMLElement>(".ranger-overlay")!;
+    const masks = [...overlay.querySelectorAll<HTMLElement>(".ranger-mask")];
+    const grips = [...overlay.querySelectorAll<HTMLElement>(".ranger-grip")];
+    const [mask_left, mask_right] = masks;
+    const [grip_left, grip_right] = grips;
+    const selected = overlay.querySelector<HTMLElement>(".ranger-selected")!;
+
+    const overview = new UPlot(
+        {
+            width,
+            height: 55,
+            cursor: {show: false},
+            legend: {show: false},
+            series: [{}, {stroke, fill, width: 1, points: {show: false}}],
+            axes: [{show: false}, {show: false}],
+            scales: {
+                x: {time: true},
+                y: {range: (_u, _min, max) => [0, max <= 0 ? 1 : max]},
+            },
+            padding: [4, 0, 4, 0],
+            hooks: {
+                // update_overlay reads overview.bbox, which is only populated
+                // after the first draw.  uPlot draws via queueMicrotask, so
+                // bbox.width is still 0 right after the constructor returns.
+                // The ready hook fires once the initial paint is complete.
+                ready: [update_overlay],
+            },
+        },
+        initial_data,
+        ranger_container,
+    );
+
+    // uPlot appends its root after the overlay; move it before so the overlay
+    // sits on top without needing an explicit z-index contest.
+    ranger_container.insertBefore(overview.root, overlay);
+
+    let sel_min = data_min;
+    let sel_max = data_max;
+
+    // uPlot's valToPos(val, "x") returns CSS pixels relative to the *plotting area*
+    // left edge.
+    function update_overlay(): void {
+        // Half-width of each grip handle in CSS pixels (full grip is 8 px wide,
+        // matching the .ranger-grip width in stats.css).
+        const GRIP_HALF_WIDTH = 4;
+        if (overview.bbox.width === 0) {
+            return;
+        }
+        // To get the position relative to the outer container we add
+        // bbox.left / UPlot.pxRatio, where bbox is in canvas pixels.
+        const bbox_left_css = overview.bbox.left / UPlot.pxRatio;
+        const bbox_right_css = (overview.bbox.left + overview.bbox.width) / UPlot.pxRatio;
+        const min_x = bbox_left_css + overview.valToPos(sel_min, "x");
+        const max_x = bbox_left_css + overview.valToPos(sel_max, "x");
+
+        mask_left!.style.left = `${bbox_left_css}px`;
+        mask_left!.style.width = `${Math.max(0, min_x - GRIP_HALF_WIDTH - bbox_left_css)}px`;
+
+        grip_left!.style.left = `${min_x - GRIP_HALF_WIDTH}px`;
+
+        selected.style.left = `${min_x + GRIP_HALF_WIDTH}px`;
+        selected.style.width = `${Math.max(0, max_x - GRIP_HALF_WIDTH - (min_x + GRIP_HALF_WIDTH))}px`;
+
+        grip_right!.style.left = `${max_x - GRIP_HALF_WIDTH}px`;
+
+        mask_right!.style.left = `${max_x + GRIP_HALF_WIDTH}px`;
+        mask_right!.style.width = `${Math.max(0, bbox_right_css - (max_x + GRIP_HALF_WIDTH))}px`;
+    }
+
+    function val_per_px(): number {
+        return (data_max - data_min) / (overview.bbox.width / UPlot.pxRatio);
+    }
+
+    // Attach pointer-capture drag to a grip or the selected region.
+    // on_drag receives the data-value delta and the sel_min/sel_max frozen at
+    // drag start, so the new boundary is computed from a fixed origin rather
+    // than accumulating floating-point error across move events.
+    function attach_drag(
+        grip: HTMLElement,
+        on_drag: (val_delta: number, start_min: number, start_max: number) => void,
+    ): void {
+        let start_x = 0;
+        let start_min = 0;
+        let start_max = 0;
+        grip.addEventListener("pointerdown", (e) => {
+            start_x = e.clientX;
+            start_min = sel_min;
+            start_max = sel_max;
+            grip.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        });
+        grip.addEventListener("pointermove", (e) => {
+            if (!grip.hasPointerCapture(e.pointerId)) {
+                return;
+            }
+            const val_delta = (e.clientX - start_x) * val_per_px();
+            on_drag(val_delta, start_min, start_max);
+            update_overlay();
+            on_range_change(sel_min, sel_max);
+        });
+    }
+
+    // For large datasets, use 2% of the total range so the minimum window
+    // grows proportionally rather than staying fixed at one week.
+    const ONE_WEEK_SECS = 86_400 * 7;
+    const MIN_RANGE = Math.max((data_max - data_min) * 0.02, ONE_WEEK_SECS);
+
+    attach_drag(grip_left!, (val_delta, start_min) => {
+        sel_min = Math.max(data_min, Math.min(start_min + val_delta, sel_max - MIN_RANGE));
+    });
+    attach_drag(grip_right!, (val_delta, _start_min, start_max) => {
+        sel_max = Math.min(data_max, Math.max(start_max + val_delta, sel_min + MIN_RANGE));
+    });
+    attach_drag(selected, (val_delta, start_min, start_max) => {
+        const window_size = start_max - start_min;
+        sel_min = Math.max(data_min, start_min + val_delta);
+        sel_max = sel_min + window_size;
+        if (sel_max > data_max) {
+            sel_max = data_max;
+            sel_min = data_max - window_size;
+        }
+    });
+
+    return {
+        set_range(min: number, max: number): void {
+            sel_min = min;
+            sel_max = max;
+            update_overlay();
+        },
+        update_data(new_data: UPlot.AlignedData): void {
+            overview.setData(new_data);
+            update_overlay();
+        },
+        destroy(): void {
+            overview.destroy();
+        },
+    };
+}
+
 function populate_number_of_users(raw_data: unknown): void {
     // Content rendered by this method is titled as "Active users" on the webpage
     const result = user_count_data_schema.safeParse(raw_data);
@@ -1007,104 +1167,192 @@ function populate_number_of_users(raw_data: unknown): void {
         return;
     }
 
-    const weekly_rangeselector = make_rangeselector(
-        {count: 2, label: $t({defaultMessage: "Last 2 months"}), step: "month"},
-        {count: 6, label: $t({defaultMessage: "Last 6 months"}), step: "month"},
-    );
+    const end_times = data.end_times; // Unix timestamps in seconds
+    const data_min = end_times[0] ?? 0;
+    const data_max = end_times.at(-1) ?? 0;
+    const container = document.querySelector<HTMLElement>("#id_number_of_users")!;
+    const ranger_container = document.querySelector<HTMLElement>("#id_number_of_users_ranger")!;
+    const series_stroke = "rgb(91, 137, 181)";
+    const series_fill = "rgba(91, 137, 181, 0.15)";
+    const series_fill_bar = "rgba(91, 137, 181, 0.2)";
 
-    const layout: Partial<Plotly.Layout> = {
-        width: 750,
-        height: 370,
-        margin: {l: 40, r: 10, b: 40, t: 0},
-        xaxis: {
-            fixedrange: true,
-            rangeslider: {bordercolor: "#D8D8D8", borderwidth: 1},
-            rangeselector: weekly_rangeselector,
-            tickangle: 0,
-        },
-        yaxis: {fixedrange: true, rangemode: "tozero"},
-        font: font_12pt,
-    };
+    let uplot_instance: UPlot | null = null;
+    let ranger: Ranger | null = null;
+    let range_preset_pending = false;
 
-    const end_dates: Date[] = data.end_times.map((timestamp: number) => new Date(timestamp * 1000));
-
-    const text = end_dates.map((date) => format_date(date, false));
-
-    function make_traces(values: Plotly.Datum[], type: Plotly.PlotType): Partial<Plotly.PlotData> {
+    function make_opts(is_bar: boolean, series_label: string): UPlot.Options {
         return {
-            x: end_dates,
-            y: values,
-            type,
-            name: $t({defaultMessage: "Active users"}),
-            hoverinfo: "none",
-            text,
-            visible: true,
+            width: CHART_WIDTH,
+            height: 330,
+            scales: {
+                x: {time: true},
+                y: {
+                    range: (_u, _data_min, max) => [0, max !== null && max > 0 ? max : 1],
+                },
+            },
+            series: [
+                {
+                    label: $t({defaultMessage: "Date"}),
+                    value: (_u, v) => format_date(new Date(v * 1000), false),
+                },
+                {
+                    label: series_label,
+                    stroke: series_stroke,
+                    ...(is_bar
+                        ? {
+                              fill: series_fill_bar,
+                              paths: UPlot.paths.bars!({size: [0.6, 100]}),
+                          }
+                        : {}),
+                    width: 2,
+                    points: {show: false},
+                },
+            ],
+            cursor: {
+                y: false,
+                drag: {setScale: true, x: true, y: false},
+            },
         };
     }
 
-    function add_hover_handler(): void {
-        document
-            .querySelector<Plotly.PlotlyHTMLElement>("#id_number_of_users")!
-            .on("plotly_hover", (data) => {
-                $("#users_hover_info").show();
-                document.querySelector("#users_hover_date")!.textContent =
-                    data.points[0]!.data.text[data.points[0]!.pointNumber]!;
-                const values: Plotly.Datum[] = [null, null, null];
-                for (const trace of data.points) {
-                    values[trace.curveNumber] = trace.y;
-                }
-                const hover_value_ids = [
-                    "#users_hover_1day_value",
-                    "#users_hover_15day_value",
-                    "#users_hover_all_time_value",
-                ];
-                for (const [i, value] of values.entries()) {
-                    if (value !== null) {
-                        document.querySelector<HTMLElement>(hover_value_ids[i]!)!.style.display =
-                            "inline";
-                        document.querySelector(hover_value_ids[i]!)!.textContent = value.toString();
-                    } else {
-                        document.querySelector<HTMLElement>(hover_value_ids[i]!)!.style.display =
-                            "none";
-                    }
-                }
-            });
+    function to_uplot_data(values: Plotly.Datum[]): UPlot.AlignedData {
+        return [new Float64Array(end_times), new Float64Array(values.map(Number))];
     }
+    const _1day_data = to_uplot_data(data.everyone._1day);
+    const _15day_data = to_uplot_data(data.everyone._15day);
+    const all_time_data = to_uplot_data(data.everyone.all_time);
 
-    const _1day_trace = make_traces(data.everyone._1day, "bar");
-    const _15day_trace = make_traces(data.everyone._15day, "scatter");
-    const all_time_trace = make_traces(data.everyone.all_time, "scatter");
-
-    $("#id_number_of_users > div").removeClass("spinner");
-
-    // Redraw the plot every time for simplicity. If we have perf problems with this in the
-    // future, we can copy the update behavior from populate_messages_sent_over_time
-    function draw_or_update_plot(trace: Plotly.Data): void {
-        $("#1day_actives_button, #15day_actives_button, #all_time_actives_button").removeClass(
+    function select_data_set_button($button: JQuery): void {
+        $("#daily_active_users, #15day_active_users, #all_time_active_users").removeClass(
             "selected",
         );
-        void Plotly.newPlot("id_number_of_users", [trace], layout, {displayModeBar: false});
-        add_hover_handler();
+        $button.addClass("selected");
     }
 
-    $("#1day_actives_button").on("click", function () {
-        draw_or_update_plot(_1day_trace);
-        $(this).addClass("selected");
+    function select_preset_range_button($button: JQuery): void {
+        $("#users_2month_range, #users_6month_range, #users_all_time_range").removeClass(
+            "selected",
+        );
+        $button.addClass("selected");
+    }
+
+    function apply_preset_range($button: JQuery, months: number | null): void {
+        if (uplot_instance === null) {
+            return;
+        }
+        range_preset_pending = true;
+        if (months === null) {
+            uplot_instance.setScale("x", {min: data_min, max: data_max});
+        } else {
+            const min_date = new Date(data_max * 1000);
+            min_date.setMonth(min_date.getMonth() - months);
+            // Clamp to data_min so the range never extends before the first data
+            // point.
+            uplot_instance.setScale("x", {
+                min: Math.max(data_min, min_date.getTime() / 1000),
+                max: data_max,
+            });
+        }
+        select_preset_range_button($button);
+    }
+
+    function draw_plot(is_bar: boolean, series_label: string, uplot_data: UPlot.AlignedData): void {
+        if (uplot_instance === null) {
+            // First draw: clear the loading spinner.
+            $("#id_number_of_users > div").removeClass("spinner");
+        } else {
+            uplot_instance.destroy();
+        }
+        uplot_instance = new UPlot(make_opts(is_bar, series_label), uplot_data, container);
+
+        // Deselect preset range buttons and sync the ranger whenever the x scale
+        // changes (drag-to-zoom on the main chart or ranger grip drag). The hook
+        // fires asynchronously via uPlot's microtask queue, so range_preset_pending
+        // is used to avoid removing the "selected" class that a button click handler
+        // just added synchronously.
+        (uplot_instance.hooks.setScale ??= []).push((_u, scaleKey) => {
+            if (scaleKey !== "x") {
+                return;
+            }
+            if (!range_preset_pending) {
+                $("#users_2month_range, #users_6month_range, #users_all_time_range").removeClass(
+                    "selected",
+                );
+            }
+            range_preset_pending = false;
+            if (ranger === null) {
+                return;
+            }
+            const {min, max} = _u.scales["x"]!;
+            if (min !== undefined && max !== undefined) {
+                ranger.set_range(min, max);
+            }
+        });
+
+        // Double-click on the main chart resets to the full x range.
+        uplot_instance.over.addEventListener("dblclick", () => {
+            apply_preset_range($("#users_all_time_range"), null);
+        });
+
+        if (ranger === null) {
+            ranger = make_ranger(
+                ranger_container,
+                uplot_data,
+                data_min,
+                data_max,
+                CHART_WIDTH,
+                series_stroke,
+                series_fill,
+                (range_min, range_max) => {
+                    uplot_instance?.setScale("x", {min: range_min, max: range_max});
+                },
+            );
+        } else {
+            ranger.update_data(uplot_data);
+        }
+    }
+
+    function set_plot_data(
+        $button: JQuery,
+        is_bar: boolean,
+        series_label: string,
+        uplot_data: UPlot.AlignedData,
+    ): void {
+        range_preset_pending = true;
+        draw_plot(is_bar, series_label, uplot_data);
+        select_data_set_button($button);
+        select_preset_range_button($("#users_all_time_range"));
+    }
+
+    const daily_label = $t({defaultMessage: "Daily actives"});
+    const fifteen_day_label = $t({defaultMessage: "15 day actives"});
+    const total_label = $t({defaultMessage: "Total users"});
+
+    $("#users_2month_range").on("click", function () {
+        apply_preset_range($(this), 2);
     });
 
-    $("#15day_actives_button").on("click", function () {
-        draw_or_update_plot(_15day_trace);
-        $(this).addClass("selected");
+    $("#users_6month_range").on("click", function () {
+        apply_preset_range($(this), 6);
     });
 
-    $("#all_time_actives_button").on("click", function () {
-        draw_or_update_plot(all_time_trace);
-        $(this).addClass("selected");
+    $("#users_all_time_range").on("click", function () {
+        apply_preset_range($(this), null);
     });
 
-    // Initial drawing of plot
-    draw_or_update_plot(all_time_trace);
-    $("#all_time_actives_button").addClass("selected");
+    $("#daily_active_users").on("click", function () {
+        set_plot_data($(this), true, daily_label, _1day_data);
+    });
+
+    $("#15day_active_users").on("click", function () {
+        set_plot_data($(this), false, fifteen_day_label, _15day_data);
+    });
+
+    $("#all_time_active_users").on("click", function () {
+        set_plot_data($(this), false, total_label, all_time_data);
+    });
+
+    set_plot_data($("#all_time_active_users"), false, total_label, all_time_data);
     get_user_summary_statistics(data.everyone);
 }
 
@@ -1154,7 +1402,7 @@ function populate_messages_read_over_time(raw_data: unknown): void {
 
     const layout: Partial<Plotly.Layout> = {
         barmode: "group",
-        width: 750,
+        width: CHART_WIDTH,
         height: 400,
         margin: {l: 40, r: 10, b: 40, t: 0},
         xaxis: {

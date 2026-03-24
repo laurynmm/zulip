@@ -37,20 +37,29 @@
                     <h1>{{ _("Active users") }}</h1>
                     <div class="button-container">
                         <div class="buttons">
-                            <button class="button" type="button" id="1day_actives_button">{{ _("Daily actives") }}</button>
-                            <button class="button" type="button" id="15day_actives_button">{{ _("15 day actives") }}</button>
-                            <button class="button" type="button" id="all_time_actives_button">{{ _("Total users") }}</button>
+                            <button class="button" type="button" id="daily_active_users">{{ _("Daily actives") }}</button>
+                            <button class="button" type="button" id="15day_active_users">{{ _("15 day actives") }}</button>
+                            <button class="button" type="button" id="all_time_active_users">{{ _("Total users") }}</button>
                         </div>
                     </div>
                     <div id="id_number_of_users">
                         <div class="spinner"></div>
                     </div>
-                    <div id="users_hover_info">
-                        <span id="users_hover_date"></span>
-                        <b id="users_hover_humans">{{ _("Users") }}: </b>
-                        <span id="users_hover_1day_value"></span>
-                        <span id="users_hover_15day_value"></span>
-                        <span id="users_hover_all_time_value"></span>
+                    <div id="id_number_of_users_ranger">
+                        <div class="ranger-overlay">
+                            <div class="ranger-mask"></div>
+                            <div class="ranger-grip"></div>
+                            <div class="ranger-selected"></div>
+                            <div class="ranger-grip"></div>
+                            <div class="ranger-mask"></div>
+                        </div>
+                    </div>
+                    <div class="button-container" id="user_range_presets">
+                        <div class="buttons">
+                            <button class="button" type="button" id="users_2month_range">{{ _("Last 2 months") }}</button>
+                            <button class="button" type="button" id="users_6month_range">{{ _("Last 6 months") }}</button>
+                            <button class="button" type="button" id="users_all_time_range">{{ _("All time") }}</button>
+                        </div>
                     </div>
                 </div>
                 <div class="chart-container">

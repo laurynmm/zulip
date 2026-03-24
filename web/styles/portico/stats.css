@@ -121,7 +121,6 @@ p {
     color: hsl(0deg 0% 67%);
 }
 
-#users_hover_humans,
 #read_hover_everyone,
 #hover_human {
     margin-left: 10px;
@@ -151,16 +150,66 @@ p {
 }
 
 #id_number_of_users {
-    height: 370px;
     width: 750px;
     position: relative;
+}
+
+#user_range_presets {
+    margin-top: 4px;
+}
+
+#id_number_of_users_ranger {
+    position: relative;
+    width: 750px;
+    margin-top: 32px;
+    user-select: none;
+}
+
+.ranger-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.ranger-mask {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: hsl(0deg 0% 0% / 8%);
+    pointer-events: none;
+}
+
+.ranger-grip {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: hsl(0deg 0% 55%);
+    border-radius: 2px;
+    cursor: ew-resize;
+    pointer-events: auto;
+}
+
+.ranger-selected {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    cursor: grab;
+    pointer-events: auto;
+
+    &:active {
+        cursor: grabbing;
+    }
 }
 
 #id_stats_errors {
     display: none;
 }
 
-#users_hover_info,
 #read_hover_info,
 #hoverinfo,
 #pie_messages_sent_by_type_total {
@@ -169,7 +218,14 @@ p {
     font-weight: 400;
 }
 
-#users_hover_info,
+#id_number_of_users .u-legend {
+    position: relative;
+    font-size: 0.8em;
+    font-weight: 400;
+    float: right;
+    height: 0;
+}
+
 #read_hover_info,
 #hoverinfo {
     display: none;
