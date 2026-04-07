@@ -3320,8 +3320,8 @@ class StripeTest(StripeTestCase):
             )
         plan = get_current_plan_by_realm(user.realm)
         assert plan is not None
-        self.assertEqual(plan.licenses(), self.seat_count)
-        self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+        self.assertEqual(plan.current_workplace_count(), self.seat_count)
+        self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
         with (
             self.assertLogs("corporate.stripe", "INFO") as m,
             time_machine.travel(self.now, tick=False),
@@ -3337,8 +3337,8 @@ class StripeTest(StripeTestCase):
             self.assertEqual(m.output[0], expected_log)
             self.assert_json_success(response)
         plan.refresh_from_db()
-        self.assertEqual(plan.licenses(), self.seat_count)
-        self.assertEqual(plan.licenses_at_next_renewal(), None)
+        self.assertEqual(plan.current_workplace_count(), self.seat_count)
+        self.assertEqual(plan.next_renewal_workplace_count(), None)
 
         with time_machine.travel(self.now, tick=False):
             mock_customer = Mock(email=user.delivery_email)
@@ -4147,8 +4147,8 @@ class StripeTest(StripeTestCase):
             self.assertEqual(plan.next_invoice_date, free_trial_end_date)
             self.assertEqual(get_realm("zulip").plan_type, Realm.PLAN_TYPE_STANDARD)
             self.assertEqual(plan.status, CustomerPlan.FREE_TRIAL)
-            self.assertEqual(plan.licenses(), self.seat_count)
-            self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count)
+            self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
 
             # Schedule downgrade
             with (
@@ -4169,8 +4169,8 @@ class StripeTest(StripeTestCase):
             self.assertEqual(plan.next_invoice_date, free_trial_end_date)
             self.assertEqual(get_realm("zulip").plan_type, Realm.PLAN_TYPE_STANDARD)
             self.assertEqual(plan.status, CustomerPlan.DOWNGRADE_AT_END_OF_FREE_TRIAL)
-            self.assertEqual(plan.licenses(), self.seat_count)
-            self.assertEqual(plan.licenses_at_next_renewal(), None)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count)
+            self.assertEqual(plan.next_renewal_workplace_count(), None)
 
             with time_machine.travel(self.now, tick=False):
                 mock_customer = Mock(email=user.delivery_email)
@@ -4259,8 +4259,8 @@ class StripeTest(StripeTestCase):
             self.assertEqual(plan.next_invoice_date, free_trial_end_date)
             self.assertEqual(get_realm("zulip").plan_type, Realm.PLAN_TYPE_STANDARD)
             self.assertEqual(plan.status, CustomerPlan.FREE_TRIAL)
-            self.assertEqual(plan.licenses(), self.seat_count)
-            self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count)
+            self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
 
             # Schedule downgrade
             with (
@@ -4281,8 +4281,8 @@ class StripeTest(StripeTestCase):
             self.assertEqual(plan.next_invoice_date, free_trial_end_date)
             self.assertEqual(get_realm("zulip").plan_type, Realm.PLAN_TYPE_STANDARD)
             self.assertEqual(plan.status, CustomerPlan.DOWNGRADE_AT_END_OF_FREE_TRIAL)
-            self.assertEqual(plan.licenses(), self.seat_count)
-            self.assertEqual(plan.licenses_at_next_renewal(), None)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count)
+            self.assertEqual(plan.next_renewal_workplace_count(), None)
 
             # Cancel downgrade
             with (
@@ -4303,8 +4303,8 @@ class StripeTest(StripeTestCase):
             self.assertEqual(plan.next_invoice_date, free_trial_end_date)
             self.assertEqual(get_realm("zulip").plan_type, Realm.PLAN_TYPE_STANDARD)
             self.assertEqual(plan.status, CustomerPlan.FREE_TRIAL)
-            self.assertEqual(plan.licenses(), self.seat_count)
-            self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count)
+            self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
 
     def test_reupgrade_by_billing_admin_after_downgrade(self) -> None:
         user = self.example_user("hamlet")
@@ -6212,8 +6212,8 @@ class LicenseLedgerTest(StripeTestCase):
             )
         plan = CustomerPlan.objects.get()
         self.assertEqual(LicenseLedger.objects.count(), 1)
-        self.assertEqual(plan.licenses(), self.seat_count + 1)
-        self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count + 1)
+        self.assertEqual(plan.current_workplace_count(), self.seat_count + 1)
+        self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count + 1)
         billing_session.update_license_ledger_if_needed(self.now)
         self.assertEqual(LicenseLedger.objects.count(), 1)
         # Test no active plan
@@ -6236,32 +6236,32 @@ class LicenseLedgerTest(StripeTestCase):
             )
         plan = CustomerPlan.objects.first()
         assert plan is not None
-        self.assertEqual(plan.licenses(), self.seat_count)
-        self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+        self.assertEqual(plan.current_workplace_count(), self.seat_count)
+        self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
 
         billing_session = RealmBillingSession(user=None, realm=realm)
         # Simple increase
         with patch("corporate.lib.stripe.get_latest_seat_count", return_value=23):
             billing_session.update_license_ledger_for_automanaged_plan(plan, self.now)
-            self.assertEqual(plan.licenses(), 23)
-            self.assertEqual(plan.licenses_at_next_renewal(), 23)
+            self.assertEqual(plan.current_workplace_count(), 23)
+            self.assertEqual(plan.next_renewal_workplace_count(), 23)
         # Decrease
         with patch("corporate.lib.stripe.get_latest_seat_count", return_value=20):
             billing_session.update_license_ledger_for_automanaged_plan(plan, self.now)
-            self.assertEqual(plan.licenses(), 23)
-            self.assertEqual(plan.licenses_at_next_renewal(), 20)
+            self.assertEqual(plan.current_workplace_count(), 23)
+            self.assertEqual(plan.next_renewal_workplace_count(), 20)
         # Increase, but not past high watermark
         with patch("corporate.lib.stripe.get_latest_seat_count", return_value=21):
             billing_session.update_license_ledger_for_automanaged_plan(plan, self.now)
-            self.assertEqual(plan.licenses(), 23)
-            self.assertEqual(plan.licenses_at_next_renewal(), 21)
+            self.assertEqual(plan.current_workplace_count(), 23)
+            self.assertEqual(plan.next_renewal_workplace_count(), 21)
         # Increase, but after renewal date, and below last year's high watermark
         with patch("corporate.lib.stripe.get_latest_seat_count", return_value=22):
             billing_session.update_license_ledger_for_automanaged_plan(
                 plan, self.next_year + timedelta(seconds=1)
             )
-            self.assertEqual(plan.licenses(), 22)
-            self.assertEqual(plan.licenses_at_next_renewal(), 22)
+            self.assertEqual(plan.current_workplace_count(), 22)
+            self.assertEqual(plan.next_renewal_workplace_count(), 22)
 
         ledger_entries = list(
             LicenseLedger.objects.values_list(
@@ -6299,8 +6299,8 @@ class LicenseLedgerTest(StripeTestCase):
             billing_session.update_license_ledger_for_manual_plan(
                 plan, self.now, licenses=self.seat_count + 3
             )
-            self.assertEqual(plan.licenses(), self.seat_count + 3)
-            self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count + 3)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count + 3)
+            self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count + 3)
 
         with (
             patch("corporate.lib.stripe.get_latest_seat_count", return_value=self.seat_count),
@@ -6314,8 +6314,8 @@ class LicenseLedgerTest(StripeTestCase):
             billing_session.update_license_ledger_for_manual_plan(
                 plan, self.now, licenses_at_next_renewal=self.seat_count
             )
-            self.assertEqual(plan.licenses(), self.seat_count + 3)
-            self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count + 3)
+            self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
 
         with (
             patch("corporate.lib.stripe.get_latest_seat_count", return_value=self.seat_count),
@@ -6329,11 +6329,11 @@ class LicenseLedgerTest(StripeTestCase):
             billing_session.update_license_ledger_for_manual_plan(
                 plan, self.now, licenses=self.seat_count + 10
             )
-            self.assertEqual(plan.licenses(), self.seat_count + 10)
-            self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count + 10)
+            self.assertEqual(plan.current_workplace_count(), self.seat_count + 10)
+            self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count + 10)
 
         billing_session.make_end_of_cycle_updates_if_needed(plan, self.next_year)
-        self.assertEqual(plan.licenses(), self.seat_count + 10)
+        self.assertEqual(plan.current_workplace_count(), self.seat_count + 10)
 
         ledger_entries = list(
             LicenseLedger.objects.values_list(
@@ -6405,8 +6405,8 @@ class LicenseLedgerTest(StripeTestCase):
         plan = get_current_plan_by_realm(get_realm("zulip"))
         assert plan is not None
         self.assertEqual(plan.automanage_licenses, True)
-        self.assertEqual(plan.licenses(), self.seat_count)
-        self.assertEqual(plan.licenses_at_next_renewal(), self.seat_count)
+        self.assertEqual(plan.current_workplace_count(), self.seat_count)
+        self.assertEqual(plan.next_renewal_workplace_count(), self.seat_count)
         billing_session = RealmBillingSession(user=None, realm=get_realm("zulip"))
         update_plan_request = UpdatePlanRequest(
             status=None,
@@ -6873,8 +6873,8 @@ class TestTestClasses(ZulipTestCase):
         self.assertEqual(plan.automanage_licenses, False)
         self.assertEqual(plan.billing_schedule, CustomerPlan.BILLING_SCHEDULE_ANNUAL)
         self.assertEqual(plan.tier, CustomerPlan.TIER_CLOUD_STANDARD)
-        self.assertEqual(plan.licenses(), 50)
-        self.assertEqual(plan.licenses_at_next_renewal(), 60)
+        self.assertEqual(plan.current_workplace_count(), 50)
+        self.assertEqual(plan.next_renewal_workplace_count(), 60)
 
         ledger.refresh_from_db()
         self.assertEqual(ledger.plan, plan)
@@ -6894,8 +6894,8 @@ class TestTestClasses(ZulipTestCase):
         self.assertEqual(plan.automanage_licenses, False)
         self.assertEqual(plan.billing_schedule, CustomerPlan.BILLING_SCHEDULE_MONTHLY)
         self.assertEqual(plan.tier, CustomerPlan.TIER_CLOUD_STANDARD)
-        self.assertEqual(plan.licenses(), 20)
-        self.assertEqual(plan.licenses_at_next_renewal(), 30)
+        self.assertEqual(plan.current_workplace_count(), 20)
+        self.assertEqual(plan.next_renewal_workplace_count(), 30)
 
         ledger.refresh_from_db()
         self.assertEqual(ledger.plan, plan)
@@ -9201,7 +9201,7 @@ class TestRemoteRealmBillingFlow(StripeTestCase, RemoteRealmBillingTestCase):
             self.assertEqual(m.output[0], expected_log)
             self.assert_json_success(response)
         business_plan.refresh_from_db()
-        self.assertEqual(business_plan.licenses_at_next_renewal(), None)
+        self.assertEqual(business_plan.next_renewal_workplace_count(), None)
 
     @responses.activate
     @mock_stripe()
@@ -9558,7 +9558,7 @@ class TestRemoteServerBillingFlow(StripeTestCase, RemoteServerTestCase):
             expected_log = f"INFO:corporate.stripe:Change plan status: Customer.id: {customer.id}, CustomerPlan.id: {new_plan.id}, status: {CustomerPlan.DOWNGRADE_AT_END_OF_CYCLE}"
             self.assertEqual(m.output[0], expected_log)
             self.assert_json_success(response)
-        self.assertEqual(new_plan.licenses_at_next_renewal(), None)
+        self.assertEqual(new_plan.next_renewal_workplace_count(), None)
 
     @responses.activate
     def test_request_sponsorship(self) -> None:

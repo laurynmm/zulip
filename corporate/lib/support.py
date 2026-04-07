@@ -266,7 +266,7 @@ def get_next_plan_data(
             return next_plan_data
 
         if current_plan is not None:
-            licenses_at_next_renewal = current_plan.licenses_at_next_renewal()
+            licenses_at_next_renewal = current_plan.next_renewal_workplace_count()
             if licenses_at_next_renewal is not None:
                 assert type(next_plan_data.plan) is CustomerPlan
                 assert next_plan_data.plan.price_per_license is not None

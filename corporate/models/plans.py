@@ -223,14 +223,14 @@ class CustomerPlan(AbstractCustomerPlan):
             self.NEVER_STARTED: "Never started",
         }[self.status]
 
-    def licenses(self) -> int:
+    def current_workplace_count(self) -> int:
         from corporate.models.licenses import LicenseLedger
 
         ledger_entry = LicenseLedger.objects.filter(plan=self).order_by("id").last()
         assert ledger_entry is not None
         return ledger_entry.current_workplace_count
 
-    def licenses_at_next_renewal(self) -> int | None:
+    def next_renewal_workplace_count(self) -> int | None:
         from corporate.models.licenses import LicenseLedger
 
         if self.status in (

@@ -9,7 +9,7 @@
             <b>Discount</b>: {{ plan_data.next_plan.discount }}%<br />
         {% endif %}
         <b>Price per license</b>: ${{ dollar_amount(plan_data.next_plan.price_per_license) }}<br />
-        <b>Estimated billed licenses</b>: {{ plan_data.current_plan.licenses_at_next_renewal() }}<br />
+        <b>Estimated billed licenses</b>: {{ plan_data.current_plan.next_renewal_workplace_count() }}<br />
     {% elif plan_data.next_plan.fixed_price %}
         <b>Plan has a fixed price.</b><br />
         {% if plan_data.next_plan.sent_invoice_id %}

@@ -21,7 +21,7 @@ def generate_licenses_low_warning_message_if_required(realm: Realm) -> str | Non
     if plan is None:
         return None
 
-    licenses_remaining = plan.licenses() - get_latest_seat_count(realm)
+    licenses_remaining = plan.current_workplace_count() - get_latest_seat_count(realm)
     if licenses_remaining > 3:
         return None
 
@@ -80,8 +80,8 @@ def check_spare_licenses_available(
     seat_count = get_seat_count(
         realm, extra_non_guests_count=extra_non_guests_count, extra_guests_count=extra_guests_count
     )
-    current_licenses = plan.licenses()
-    renewal_licenses = plan.licenses_at_next_renewal()
+    current_licenses = plan.current_workplace_count()
+    renewal_licenses = plan.next_renewal_workplace_count()
     if current_licenses < seat_count or (renewal_licenses and renewal_licenses < seat_count):
         raise LicenseLimitError
 

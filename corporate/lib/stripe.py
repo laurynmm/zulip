@@ -3899,7 +3899,7 @@ class BillingSession(ABC):
         if licenses is not None:
             if not plan.customer.exempt_from_license_number_check:
                 assert self.get_current_billed_license_count() <= licenses
-            assert licenses > plan.licenses()
+            assert licenses > plan.current_workplace_count()
             LicenseLedger.objects.create(
                 plan=plan,
                 event_time=event_time,
@@ -3916,7 +3916,7 @@ class BillingSession(ABC):
             LicenseLedger.objects.create(
                 plan=plan,
                 event_time=event_time,
-                current_workplace_count=plan.licenses(),
+                current_workplace_count=plan.current_workplace_count(),
                 next_renewal_workplace_count=licenses_at_next_renewal,
             )
         else:
