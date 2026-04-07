@@ -237,8 +237,8 @@ class PermissionTest(ZulipTestCase):
             "Your organization does not have enough Zulip licenses to change a guest user's role.",
         )
 
-        ledger.licenses = get_latest_seat_count(desdemona.realm) + 1
-        ledger.save(update_fields=["licenses"])
+        ledger.current_workplace_count = get_latest_seat_count(desdemona.realm) + 1
+        ledger.save(update_fields=["current_workplace_count"])
         with self.settings(BILLING_ENABLED=True):
             result = self.client_patch(f"/json/users/{polonius.id}", req)
         self.assert_json_error(
@@ -246,8 +246,8 @@ class PermissionTest(ZulipTestCase):
             "Your organization does not have enough Zulip licenses to change a guest user's role.",
         )
 
-        ledger.licenses_at_next_renewal = get_latest_seat_count(desdemona.realm) + 1
-        ledger.save(update_fields=["licenses_at_next_renewal"])
+        ledger.next_renewal_workplace_count = get_latest_seat_count(desdemona.realm) + 1
+        ledger.save(update_fields=["next_renewal_workplace_count"])
         with self.settings(BILLING_ENABLED=True):
             result = self.client_patch(f"/json/users/{polonius.id}", req)
         self.assert_json_success(result)

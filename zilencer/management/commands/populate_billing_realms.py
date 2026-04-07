@@ -324,8 +324,8 @@ def create_plan_for_customer(customer: Customer, customer_profile: CustomerProfi
     )
 
     LicenseLedger.objects.create(
-        licenses=25,
-        licenses_at_next_renewal=25,
+        current_workplace_count=25,
+        next_renewal_workplace_count=25,
         event_time=timezone_now(),
         is_renewal=True,
         plan=customer_plan,

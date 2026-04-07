@@ -25,21 +25,24 @@ class LicenseLedger(models.Model):
 
     event_time = models.DateTimeField()
 
-    # The number of licenses ("seats") purchased by the organization at the time of ledger
-    # entry creation. Normally, to add a user the organization needs at least one spare license.
-    # Once a license is purchased, it is valid till the end of the billing period, irrespective
-    # of whether the license is used or not. So the value of licenses will never decrease for
-    # subsequent LicenseLedger entries in the same billing period.
-    licenses = models.IntegerField()
+    # The number of workplace user "licenses" purchased by the organization
+    # at the time of ledger entry creation. Normally, to add a workplace user,
+    # the organization needs at least one spare workplace user "license".
+    # Once a "license" is purchased, it is valid till the end of the billing
+    # period, irrespective of whether it is used or not. So the value of
+    # current_workplace_count will never decrease for subsequent LicenseLedger
+    # entries in the same billing period.
+    current_workplace_count = models.IntegerField()
 
-    # The number of licenses the organization needs in the next billing cycle. The value of
-    # licenses_at_next_renewal can increase or decrease for subsequent LicenseLedger entries in
-    # the same billing period. For plans on automatic license management this value is usually
-    # equal to the number of activated users in the organization.
-    licenses_at_next_renewal = models.IntegerField(null=True)
+    # The number of workplace user "licenses" that the organization needs in
+    # the next billing cycle. The value of next_renewal_workplace_count can
+    # increase or decrease for subsequent LicenseLedger entries in the same
+    # billing period. For plans on automatic license management this value is
+    # usually equal to the number of workplace users in the organization.
+    next_renewal_workplace_count = models.IntegerField(null=True)
 
     @override
     def __str__(self) -> str:
         ledger_type = "renewal" if self.is_renewal else "update"
         ledger_time = self.event_time.replace(tzinfo=None).isoformat(" ", "minutes")
-        return f"License {ledger_type}, {self.licenses} purchased, {self.licenses_at_next_renewal} next cycle, {ledger_time} (id={self.id})"
+        return f"License {ledger_type}, {self.current_workplace_count} purchased, {self.next_renewal_workplace_count} next cycle, {ledger_time} (id={self.id})"

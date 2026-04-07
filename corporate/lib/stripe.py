@@ -334,7 +334,9 @@ def get_amount_to_credit_for_plan_tier_change(
 
     next_renewal_date = start_of_next_billing_cycle(current_plan, plan_change_date)
 
-    last_renewal_amount = last_renewal_ledger.licenses * current_plan.price_per_license
+    last_renewal_amount = (
+        last_renewal_ledger.current_workplace_count * current_plan.price_per_license
+    )
     last_renewal_date = last_renewal_ledger.event_time
 
     prorated_fraction = 1 - (plan_change_date - last_renewal_date) / (
@@ -1980,10 +1982,10 @@ class BillingSession(ABC):
                     .order_by("-id")
                     .first()
                 )
-                # Update license_at_next_renewal as per new paid plan.
+                # Update next_renewal_workplace_count as per new paid plan.
                 assert last_ledger_entry is not None
-                last_ledger_entry.licenses_at_next_renewal = billable_licenses
-                last_ledger_entry.save(update_fields=["licenses_at_next_renewal"])
+                last_ledger_entry.next_renewal_workplace_count = billable_licenses
+                last_ledger_entry.save(update_fields=["next_renewal_workplace_count"])
                 complimentary_access_plan.status = CustomerPlan.SWITCH_PLAN_TIER_AT_PLAN_END
                 complimentary_access_plan.save(update_fields=["status"])
             elif complimentary_access_plan is not None:  # nocoverage
@@ -2038,8 +2040,8 @@ class BillingSession(ABC):
                 plan=plan,
                 is_renewal=True,
                 event_time=billing_cycle_anchor,
-                licenses=licenses,
-                licenses_at_next_renewal=licenses,
+                current_workplace_count=licenses,
+                next_renewal_workplace_count=licenses,
             )
             plan.invoiced_through = ledger_entry
             plan.save(update_fields=["invoiced_through"])
@@ -2059,8 +2061,8 @@ class BillingSession(ABC):
                         plan=plan,
                         is_renewal=False,
                         event_time=billing_cycle_anchor,
-                        licenses=billable_licenses,
-                        licenses_at_next_renewal=billable_licenses,
+                        current_workplace_count=billable_licenses,
+                        next_renewal_workplace_count=billable_licenses,
                     )
                     # Creates due today invoice for additional licenses.
                     self.invoice_plan(plan, billing_cycle_anchor)
@@ -2071,8 +2073,8 @@ class BillingSession(ABC):
                         plan=plan,
                         is_renewal=False,
                         event_time=billing_cycle_anchor,
-                        licenses=licenses,
-                        licenses_at_next_renewal=billable_licenses,
+                        current_workplace_count=licenses,
+                        next_renewal_workplace_count=billable_licenses,
                     )
                     # Send internal billing notice about license discrepancy.
                     context = {
@@ -2228,7 +2230,7 @@ class BillingSession(ABC):
         )
         last_ledger_entry = LicenseLedger.objects.filter(plan=plan).order_by("-id").first()
         assert last_ledger_entry is not None
-        licenses_at_next_renewal = last_ledger_entry.licenses_at_next_renewal
+        licenses_at_next_renewal = last_ledger_entry.next_renewal_workplace_count
         assert licenses_at_next_renewal is not None
         assert plan.next_invoice_date is not None
         next_billing_cycle = plan.next_invoice_date
@@ -2261,8 +2263,8 @@ class BillingSession(ABC):
             plan=new_plan,
             is_renewal=True,
             event_time=plan.billing_cycle_anchor,
-            licenses=licenses_at_next_renewal,
-            licenses_at_next_renewal=licenses_at_next_renewal,
+            current_workplace_count=licenses_at_next_renewal,
+            next_renewal_workplace_count=licenses_at_next_renewal,
         )
 
         new_plan.invoiced_through = ledger_entry
@@ -2300,7 +2302,7 @@ class BillingSession(ABC):
         min_licenses = self.min_licenses_for_plan(plan.tier)
         if min_licenses > renewal_license_count:
             # If we are renewing less licenses than the minimum required for the plan, we need to
-            # adjust `license_at_next_renewal` for the customer.
+            # adjust `next_renewal_workplace_count` for the customer.
             raise BillingError(
                 f"Renewal licenses ({renewal_license_count}) less than minimum licenses ({min_licenses}) required for plan {plan.name}."
             )
@@ -2328,7 +2330,7 @@ class BillingSession(ABC):
         event_in_next_billing_cycle = next_billing_cycle <= event_time
 
         if event_in_next_billing_cycle and last_ledger_entry is not None:
-            licenses_at_next_renewal = last_ledger_entry.licenses_at_next_renewal
+            licenses_at_next_renewal = last_ledger_entry.next_renewal_workplace_count
             assert licenses_at_next_renewal is not None
 
             if plan.end_date == next_billing_cycle and plan.status == CustomerPlan.ACTIVE:
@@ -2341,8 +2343,8 @@ class BillingSession(ABC):
                     plan=plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
-                    licenses=licenses_at_next_renewal,
-                    licenses_at_next_renewal=licenses_at_next_renewal,
+                    current_workplace_count=licenses_at_next_renewal,
+                    next_renewal_workplace_count=licenses_at_next_renewal,
                 )
             if plan.is_free_trial():
                 is_renewal = True
@@ -2373,7 +2375,7 @@ class BillingSession(ABC):
                         last_renewal_ledger_entry.save(update_fields=["event_time"])
                         # Since we are skipping over processing license ledger
                         # entries / RealmAuditLogs that are after `last_renewal_ledger_entry`,
-                        # we need to update `licenses_at_next_renewal` to reflect the current value.
+                        # we need to update `next_renewal_workplace_count` to reflect the current value.
                         # It is okay to skip over them here since they were in free trial.
                         licenses_at_next_renewal = max(
                             self.get_billable_licenses_for_customer(
@@ -2396,8 +2398,8 @@ class BillingSession(ABC):
                     plan=plan,
                     is_renewal=is_renewal,
                     event_time=next_billing_cycle,
-                    licenses=licenses_at_next_renewal,
-                    licenses_at_next_renewal=licenses_at_next_renewal,
+                    current_workplace_count=licenses_at_next_renewal,
+                    next_renewal_workplace_count=licenses_at_next_renewal,
                 )
 
             if plan.status == CustomerPlan.SWITCH_PLAN_TIER_AT_PLAN_END:  # nocoverage
@@ -2418,8 +2420,8 @@ class BillingSession(ABC):
                     plan=new_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
-                    licenses=licenses_at_next_renewal,
-                    licenses_at_next_renewal=licenses_at_next_renewal,
+                    current_workplace_count=licenses_at_next_renewal,
+                    next_renewal_workplace_count=licenses_at_next_renewal,
                 )
 
             if plan.status == CustomerPlan.SWITCH_TO_ANNUAL_AT_END_OF_CYCLE:
@@ -2453,8 +2455,8 @@ class BillingSession(ABC):
                     plan=new_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
-                    licenses=licenses_at_next_renewal,
-                    licenses_at_next_renewal=licenses_at_next_renewal,
+                    current_workplace_count=licenses_at_next_renewal,
+                    next_renewal_workplace_count=licenses_at_next_renewal,
                 )
 
                 self.write_to_audit_log(
@@ -2499,8 +2501,8 @@ class BillingSession(ABC):
                     plan=new_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
-                    licenses=licenses_at_next_renewal,
-                    licenses_at_next_renewal=licenses_at_next_renewal,
+                    current_workplace_count=licenses_at_next_renewal,
+                    next_renewal_workplace_count=licenses_at_next_renewal,
                 )
 
                 self.write_to_audit_log(
@@ -2557,10 +2559,10 @@ class BillingSession(ABC):
             if plan.end_date == get_next_billing_cycle_for_plan(plan):
                 return 0
             return get_amount_due_fixed_price_plan(plan.fixed_price, plan.billing_schedule)
-        if last_ledger_entry.licenses_at_next_renewal is None:
+        if last_ledger_entry.next_renewal_workplace_count is None:
             return 0  # nocoverage
         assert plan.price_per_license is not None  # for mypy
-        return plan.price_per_license * last_ledger_entry.licenses_at_next_renewal
+        return plan.price_per_license * last_ledger_entry.next_renewal_workplace_count
 
     def get_billing_context_from_plan(
         self,
@@ -2578,8 +2580,8 @@ class BillingSession(ABC):
         switch_to_monthly_at_end_of_cycle = (
             plan.status == CustomerPlan.SWITCH_TO_MONTHLY_AT_END_OF_CYCLE
         )
-        licenses = last_ledger_entry.licenses
-        licenses_at_next_renewal = last_ledger_entry.licenses_at_next_renewal
+        licenses = last_ledger_entry.current_workplace_count
+        licenses_at_next_renewal = last_ledger_entry.next_renewal_workplace_count
         assert licenses_at_next_renewal is not None
         min_licenses_for_plan = self.min_licenses_for_plan(plan.tier)
         billable_license_count = self.get_current_billed_license_count()
@@ -3118,13 +3120,13 @@ class BillingSession(ABC):
                         "Unable to update licenses manually. Your plan is on automatic license management."
                     )
                 )
-            if last_ledger_entry.licenses == licenses:
+            if last_ledger_entry.current_workplace_count == licenses:
                 raise JsonableError(
                     _(
                         "Your plan is already on {licenses} licenses in the current billing period."
                     ).format(licenses=licenses)
                 )
-            if last_ledger_entry.licenses > licenses:
+            if last_ledger_entry.current_workplace_count > licenses:
                 raise JsonableError(
                     _("You cannot decrease the licenses in the current billing period.")
                 )
@@ -3155,7 +3157,7 @@ class BillingSession(ABC):
                         "Cannot change the licenses for next billing cycle for a plan that is being downgraded."
                     )
                 )
-            if last_ledger_entry.licenses_at_next_renewal == licenses_at_next_renewal:
+            if last_ledger_entry.next_renewal_workplace_count == licenses_at_next_renewal:
                 raise JsonableError(
                     _(
                         "Your plan is already scheduled to renew with {licenses_at_next_renewal} licenses."
@@ -3178,13 +3180,13 @@ class BillingSession(ABC):
                 assert invoice is not None
                 # Don't allow customer to reduce licenses for next billing cycle if they have paid invoice.
                 if invoice.status == Invoice.PAID:
-                    assert last_ledger_entry.licenses_at_next_renewal is not None
-                    if last_ledger_entry.licenses_at_next_renewal > licenses_at_next_renewal:
+                    assert last_ledger_entry.next_renewal_workplace_count is not None
+                    if last_ledger_entry.next_renewal_workplace_count > licenses_at_next_renewal:
                         raise JsonableError(
                             _(
                                 "You’ve already purchased {licenses_at_next_renewal} licenses for the next billing period."
                             ).format(
-                                licenses_at_next_renewal=last_ledger_entry.licenses_at_next_renewal
+                                licenses_at_next_renewal=last_ledger_entry.next_renewal_workplace_count
                             )
                         )
                     else:
@@ -3240,7 +3242,7 @@ class BillingSession(ABC):
         )
         assert current_plan_last_ledger is not None
 
-        old_plan_licenses_at_next_renewal = current_plan_last_ledger.licenses_at_next_renewal
+        old_plan_licenses_at_next_renewal = current_plan_last_ledger.next_renewal_workplace_count
         assert old_plan_licenses_at_next_renewal is not None
         licenses_for_new_plan = self.get_billable_licenses_for_customer(
             current_plan.customer,
@@ -3255,8 +3257,8 @@ class BillingSession(ABC):
             plan=new_plan,
             is_renewal=True,
             event_time=new_plan_billing_cycle_anchor,
-            licenses=licenses_for_new_plan,
-            licenses_at_next_renewal=licenses_for_new_plan,
+            current_workplace_count=licenses_for_new_plan,
+            next_renewal_workplace_count=licenses_for_new_plan,
         )
 
     def create_stripe_invoice_for_plan(self, plan: CustomerPlan) -> stripe.Invoice:
@@ -3328,7 +3330,7 @@ class BillingSession(ABC):
         else:
             assert plan.price_per_license is not None  # needed for mypy
             invoice_item_params["unit_amount_decimal"] = Decimal(plan.price_per_license)
-            invoice_item_params["quantity"] = ledger_entry.licenses
+            invoice_item_params["quantity"] = ledger_entry.current_workplace_count
         invoice_item_params["description"] = f"{plan.name} - renewal"
         return invoice_item_params
 
@@ -3369,7 +3371,7 @@ class BillingSession(ABC):
             )
             unit_amount = int(plan.price_per_license * proration_fraction + 0.5)
         invoice_item_params["unit_amount_decimal"] = Decimal(unit_amount)
-        invoice_item_params["quantity"] = ledger_entry.licenses - licenses_base
+        invoice_item_params["quantity"] = ledger_entry.current_workplace_count - licenses_base
         invoice_item_params["description"] = f"Additional {plan.name} license"
         return invoice_item_params
 
@@ -3381,7 +3383,9 @@ class BillingSession(ABC):
     ) -> stripe.params.InvoiceItemCreateParams:
         current_quantity = invoice_item.get("quantity")
         assert current_quantity is not None
-        invoice_item["quantity"] = current_quantity + (ledger_entry.licenses - licenses_base)
+        invoice_item["quantity"] = current_quantity + (
+            ledger_entry.current_workplace_count - licenses_base
+        )
         return invoice_item
 
     def invoice_plan(self, plan: CustomerPlan, event_time: datetime) -> None:
@@ -3414,7 +3418,7 @@ class BillingSession(ABC):
                 licenses_base = None
             else:
                 assert plan.invoiced_through is not None
-                licenses_base = plan.invoiced_through.licenses
+                licenses_base = plan.invoiced_through.current_workplace_count
                 invoiced_through_id = plan.invoiced_through.id
 
             # Mark the plan for start of invoicing process.
@@ -3442,7 +3446,7 @@ class BillingSession(ABC):
                 if ledger_entry.is_renewal or (
                     plan.fixed_price is None
                     and licenses_base is not None
-                    and ledger_entry.licenses != licenses_base
+                    and ledger_entry.current_workplace_count != licenses_base
                 ):
                     create_invoice_item = True
 
@@ -3497,7 +3501,7 @@ class BillingSession(ABC):
                             current_tracked_date = ledger_entry.event_time.date()
 
                 # Update license base per ledger_entry.
-                licenses_base = ledger_entry.licenses
+                licenses_base = ledger_entry.current_workplace_count
                 plan.invoiced_through = ledger_entry
                 plan.save(update_fields=["invoiced_through"])
 
@@ -3822,8 +3826,8 @@ class BillingSession(ABC):
             plan=plan,
             is_renewal=True,
             event_time=event_time,
-            licenses=licenses,
-            licenses_at_next_renewal=licenses,
+            current_workplace_count=licenses,
+            next_renewal_workplace_count=licenses,
         )
 
         # Update the last sent invoice with the new licenses. We just need to update `quantity` in
@@ -3899,8 +3903,8 @@ class BillingSession(ABC):
             LicenseLedger.objects.create(
                 plan=plan,
                 event_time=event_time,
-                licenses=licenses,
-                licenses_at_next_renewal=licenses,
+                current_workplace_count=licenses,
+                next_renewal_workplace_count=licenses,
             )
         elif licenses_at_next_renewal is not None:
             assert (
@@ -3912,8 +3916,8 @@ class BillingSession(ABC):
             LicenseLedger.objects.create(
                 plan=plan,
                 event_time=event_time,
-                licenses=plan.licenses(),
-                licenses_at_next_renewal=licenses_at_next_renewal,
+                current_workplace_count=plan.licenses(),
+                next_renewal_workplace_count=licenses_at_next_renewal,
             )
         else:
             raise AssertionError("Pass licenses or licenses_at_next_renewal")
@@ -3959,20 +3963,22 @@ class BillingSession(ABC):
                 plan.tier,
                 event_time=event_time,
             )
-            licenses = max(current_plan_licenses_at_next_renewal, last_ledger_entry.licenses)
+            licenses = max(
+                current_plan_licenses_at_next_renewal, last_ledger_entry.current_workplace_count
+            )
         else:
             licenses_at_next_renewal = self.get_billable_licenses_for_customer(
                 plan.customer,
                 plan.tier,
                 event_time=event_time,
             )
-            licenses = max(licenses_at_next_renewal, last_ledger_entry.licenses)
+            licenses = max(licenses_at_next_renewal, last_ledger_entry.current_workplace_count)
 
         LicenseLedger.objects.create(
             plan=plan,
             event_time=event_time,
-            licenses=licenses,
-            licenses_at_next_renewal=licenses_at_next_renewal,
+            current_workplace_count=licenses,
+            next_renewal_workplace_count=licenses_at_next_renewal,
         )
 
         # Returning plan is particularly helpful for 'sync_license_ledger_if_needed'.
@@ -4023,8 +4029,8 @@ class BillingSession(ABC):
             plan=complimentary_access_plan,
             is_renewal=True,
             event_time=complimentary_access_plan_anchor,
-            licenses=billed_licenses,
-            licenses_at_next_renewal=billed_licenses,
+            current_workplace_count=billed_licenses,
+            next_renewal_workplace_count=billed_licenses,
         )
         complimentary_access_plan.invoiced_through = ledger_entry
         complimentary_access_plan.save(update_fields=["invoiced_through"])
@@ -4078,8 +4084,8 @@ class BillingSession(ABC):
             plan=community_plan,
             is_renewal=True,
             event_time=now,
-            licenses=billed_licenses,
-            licenses_at_next_renewal=billed_licenses,
+            current_workplace_count=billed_licenses,
+            next_renewal_workplace_count=billed_licenses,
         )
         community_plan.invoiced_through = ledger_entry
         community_plan.save(update_fields=["invoiced_through"])
