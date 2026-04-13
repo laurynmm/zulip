@@ -198,34 +198,36 @@ def unsign_seat_count(signed_seat_count: str, salt: str) -> int:
         raise BillingError("tampered seat count")
 
 
-def validate_licenses(
+def validate_workplace_users_for_plan(
     charge_automatically: bool,
-    licenses: int | None,
-    seat_count: int,
-    exempt_from_license_number_check: bool,
-    min_licenses_for_plan: int,
+    new_user_count: int | None,
+    current_user_count: int,
+    exempt_from_license_count_check: bool,
+    min_workplace_users_for_plan: int,
 ) -> None:
-    min_licenses = max(seat_count, min_licenses_for_plan)
-    max_licenses = None
-    # max / min license check for invoiced plans is disabled in production right now.
+    min_to_check = max(current_user_count, min_workplace_users_for_plan)
+    max_to_check = None
+    # max / min check for invoiced plans is disabled in production right now.
     # Logic and tests are kept in case we decide to enable it in future.
     if settings.TEST_SUITE and not charge_automatically:
-        min_licenses = max(seat_count, MIN_INVOICED_LICENSES)
-        max_licenses = MAX_INVOICED_LICENSES
+        min_to_check = max(current_user_count, MIN_INVOICED_LICENSES)
+        max_to_check = MAX_INVOICED_LICENSES
 
-    if licenses is None or (not exempt_from_license_number_check and licenses < min_licenses):
+    if new_user_count is None or (
+        not exempt_from_license_count_check and new_user_count < min_to_check
+    ):
         raise BillingError(
             "not enough licenses",
             _(
                 "You must purchase licenses for all active users in your organization (minimum {min_licenses})."
-            ).format(min_licenses=min_licenses),
+            ).format(min_licenses=min_to_check),
         )
 
-    if max_licenses is not None and licenses > max_licenses:
+    if max_to_check is not None and new_user_count > max_to_check:
         message = _(
             "Invoices with more than {max_licenses} licenses can't be processed from this page. To"
             " complete the upgrade, please contact {email}."
-        ).format(max_licenses=max_licenses, email=settings.ZULIP_ADMINISTRATOR)
+        ).format(max_licenses=max_to_check, email=settings.ZULIP_ADMINISTRATOR)
         raise BillingError("too many licenses", message)
 
 
@@ -2161,7 +2163,7 @@ class BillingSession(ABC):
             customer is not None and customer.exempt_from_license_number_check
         )
         charge_automatically = billing_modality == "charge_automatically"
-        validate_licenses(
+        validate_workplace_users_for_plan(
             charge_automatically,
             licenses,
             seat_count,
@@ -3130,7 +3132,7 @@ class BillingSession(ABC):
                 raise JsonableError(
                     _("You cannot decrease the licenses in the current billing period.")
                 )
-            validate_licenses(
+            validate_workplace_users_for_plan(
                 plan.charge_automatically,
                 licenses,
                 self.get_current_billed_license_count(),
@@ -3166,7 +3168,7 @@ class BillingSession(ABC):
             is_plan_free_trial_with_invoice_payment = (
                 plan.is_free_trial() and not plan.charge_automatically
             )
-            validate_licenses(
+            validate_workplace_users_for_plan(
                 plan.charge_automatically,
                 licenses_at_next_renewal,
                 self.get_current_billed_license_count(),
