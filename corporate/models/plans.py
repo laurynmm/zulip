@@ -103,6 +103,8 @@ class CustomerPlan(AbstractCustomerPlan):
     }
     billing_schedule = models.SmallIntegerField()
 
+    user_group_billing_enabled = models.BooleanField(default=False)
+
     # The next date the billing system should go through ledger
     # entries and create invoices for additional users or plan
     # renewal. Since we use a daily cron job for invoicing, the
