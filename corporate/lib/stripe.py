@@ -977,6 +977,25 @@ class BillingSession(ABC):
         stripe.Invoice.finalize_invoice(stripe_invoice)
         return stripe_invoice
 
+    def create_license_ledger_entry(
+        self,
+        *,
+        plan: CustomerPlan,
+        is_renewal: bool,
+        event_time: datetime,
+        current_workplace_count: int,
+        renewal_workplace_count: int,
+    ) -> LicenseLedger:
+        # TODO Implement two-tier billing for workplace user group.
+        assert not plan.user_group_billing_enabled
+        return LicenseLedger.objects.create(
+            plan=plan,
+            is_renewal=is_renewal,
+            event_time=event_time,
+            current_workplace_count=current_workplace_count,
+            next_renewal_workplace_count=renewal_workplace_count,
+        )
+
     @abstractmethod
     def update_or_create_customer(
         self, stripe_customer_id: str | None = None, *, defaults: dict[str, Any] | None = None
@@ -1532,6 +1551,8 @@ class BillingSession(ABC):
             fixed_price_plan_params["charge_automatically"] = current_plan.charge_automatically
             # Manual license management is not available for fixed price plan.
             fixed_price_plan_params["automanage_licenses"] = True
+            # Workplace user group billing is not available for fixed price plans.
+            fixed_price_plan_params["user_group_billing_enabled"] = False
 
             CustomerPlan.objects.create(
                 customer=customer,
@@ -1924,12 +1945,16 @@ class BillingSession(ABC):
             else:
                 billable_licenses = current_licenses_count
 
+            # TODO Implement two-tier billing for workplace user group.
+            user_group_billing_enabled = False
+
             plan_params = {
                 "automanage_licenses": automanage_licenses,
                 "charge_automatically": charge_automatically,
                 "billing_cycle_anchor": billing_cycle_anchor,
                 "billing_schedule": billing_schedule,
                 "tier": plan_tier,
+                "user_group_billing_enabled": user_group_billing_enabled,
             }
 
             if free_trial:
@@ -2038,12 +2063,12 @@ class BillingSession(ABC):
 
             # LicenseLedger entries are way for us to charge customer and track their license usage.
             # So, we should only create these entries for live plans.
-            ledger_entry = LicenseLedger.objects.create(
+            ledger_entry = self.create_license_ledger_entry(
                 plan=plan,
                 is_renewal=True,
                 event_time=billing_cycle_anchor,
                 current_workplace_count=licenses,
-                next_renewal_workplace_count=licenses,
+                renewal_workplace_count=licenses,
             )
             plan.invoiced_through = ledger_entry
             plan.save(update_fields=["invoiced_through"])
@@ -2059,24 +2084,24 @@ class BillingSession(ABC):
                 if billable_licenses > licenses:
                     # Customer paid for less licenses than they have in use.
                     # We need to create a new ledger entry to track the additional licenses.
-                    LicenseLedger.objects.create(
+                    self.create_license_ledger_entry(
                         plan=plan,
                         is_renewal=False,
                         event_time=billing_cycle_anchor,
                         current_workplace_count=billable_licenses,
-                        next_renewal_workplace_count=billable_licenses,
+                        renewal_workplace_count=billable_licenses,
                     )
                     # Creates due today invoice for additional licenses.
                     self.invoice_plan(plan, billing_cycle_anchor)
                 else:
                     # Customer paid for more licenses than they have in use.
                     # We need to create a new ledger entry to track the reduced renewal licenses.
-                    LicenseLedger.objects.create(
+                    self.create_license_ledger_entry(
                         plan=plan,
                         is_renewal=False,
                         event_time=billing_cycle_anchor,
                         current_workplace_count=licenses,
-                        next_renewal_workplace_count=billable_licenses,
+                        renewal_workplace_count=billable_licenses,
                     )
                     # Send internal billing notice about license discrepancy.
                     context = {
@@ -2259,14 +2284,15 @@ class BillingSession(ABC):
             tier=plan.tier,
             status=CustomerPlan.FREE_TRIAL,
             next_invoice_date=next_billing_cycle,
+            user_group_billing_enabled=plan.user_group_billing_enabled,
         )
 
-        ledger_entry = LicenseLedger.objects.create(
+        ledger_entry = self.create_license_ledger_entry(
             plan=new_plan,
             is_renewal=True,
             event_time=plan.billing_cycle_anchor,
             current_workplace_count=licenses_at_next_renewal,
-            next_renewal_workplace_count=licenses_at_next_renewal,
+            renewal_workplace_count=licenses_at_next_renewal,
         )
 
         new_plan.invoiced_through = ledger_entry
@@ -2341,13 +2367,14 @@ class BillingSession(ABC):
 
             if plan.status == CustomerPlan.ACTIVE:
                 self.validate_plan_license_management(plan, licenses_at_next_renewal)
-                return None, LicenseLedger.objects.create(
+                new_ledger_entry = self.create_license_ledger_entry(
                     plan=plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
-                    next_renewal_workplace_count=licenses_at_next_renewal,
+                    renewal_workplace_count=licenses_at_next_renewal,
                 )
+                return None, new_ledger_entry
             if plan.is_free_trial():
                 is_renewal = True
                 # Check if user has already paid for the plan by invoice.
@@ -2396,13 +2423,14 @@ class BillingSession(ABC):
                 plan.billing_cycle_anchor = standardize_datetime_for_stripe(next_billing_cycle)
                 plan.status = CustomerPlan.ACTIVE
                 plan.save(update_fields=["invoiced_through", "billing_cycle_anchor", "status"])
-                return None, LicenseLedger.objects.create(
+                new_ledger_entry = self.create_license_ledger_entry(
                     plan=plan,
                     is_renewal=is_renewal,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
-                    next_renewal_workplace_count=licenses_at_next_renewal,
+                    renewal_workplace_count=licenses_at_next_renewal,
                 )
+                return None, new_ledger_entry
 
             if plan.status == CustomerPlan.SWITCH_PLAN_TIER_AT_PLAN_END:  # nocoverage
                 plan.status = CustomerPlan.ENDED
@@ -2418,13 +2446,14 @@ class BillingSession(ABC):
                 new_plan.status = CustomerPlan.ACTIVE
                 new_plan.save(update_fields=["status"])
                 self.do_change_plan_type(tier=new_plan.tier, background_update=True)
-                return None, LicenseLedger.objects.create(
+                new_ledger_entry = self.create_license_ledger_entry(
                     plan=new_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
-                    next_renewal_workplace_count=licenses_at_next_renewal,
+                    renewal_workplace_count=licenses_at_next_renewal,
                 )
+                return None, new_ledger_entry
 
             if plan.status == CustomerPlan.SWITCH_TO_ANNUAL_AT_END_OF_CYCLE:
                 self.validate_plan_license_management(plan, licenses_at_next_renewal)
@@ -2451,14 +2480,14 @@ class BillingSession(ABC):
                     next_invoice_date=next_billing_cycle,
                     invoiced_through=None,
                     invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
+                    user_group_billing_enabled=plan.user_group_billing_enabled,
                 )
-
-                new_plan_ledger_entry = LicenseLedger.objects.create(
+                new_plan_ledger_entry = self.create_license_ledger_entry(
                     plan=new_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
-                    next_renewal_workplace_count=licenses_at_next_renewal,
+                    renewal_workplace_count=licenses_at_next_renewal,
                 )
 
                 self.write_to_audit_log(
@@ -2497,14 +2526,15 @@ class BillingSession(ABC):
                     next_invoice_date=next_billing_cycle,
                     invoiced_through=None,
                     invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
+                    user_group_billing_enabled=plan.user_group_billing_enabled,
                 )
 
-                new_plan_ledger_entry = LicenseLedger.objects.create(
+                new_plan_ledger_entry = self.create_license_ledger_entry(
                     plan=new_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
-                    next_renewal_workplace_count=licenses_at_next_renewal,
+                    renewal_workplace_count=licenses_at_next_renewal,
                 )
 
                 self.write_to_audit_log(
@@ -3237,6 +3267,7 @@ class BillingSession(ABC):
             billing_cycle_anchor=new_plan_billing_cycle_anchor,
             invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
             next_invoice_date=new_plan_billing_cycle_anchor,
+            user_group_billing_enabled=current_plan.user_group_billing_enabled,
         )
 
         current_plan_last_ledger = (
@@ -3255,12 +3286,12 @@ class BillingSession(ABC):
             licenses_for_new_plan = max(old_plan_licenses_at_next_renewal, licenses_for_new_plan)
 
         assert licenses_for_new_plan is not None
-        LicenseLedger.objects.create(
+        self.create_license_ledger_entry(
             plan=new_plan,
             is_renewal=True,
             event_time=new_plan_billing_cycle_anchor,
             current_workplace_count=licenses_for_new_plan,
-            next_renewal_workplace_count=licenses_for_new_plan,
+            renewal_workplace_count=licenses_for_new_plan,
         )
 
     def create_stripe_invoice_for_plan(self, plan: CustomerPlan) -> stripe.Invoice:
@@ -3824,12 +3855,12 @@ class BillingSession(ABC):
 
         # Create a new renewal invoice with updated licenses so that this becomes the last
         # renewal invoice for customer which will be used for any future comparisons.
-        LicenseLedger.objects.create(
+        self.create_license_ledger_entry(
             plan=plan,
             is_renewal=True,
             event_time=event_time,
             current_workplace_count=licenses,
-            next_renewal_workplace_count=licenses,
+            renewal_workplace_count=licenses,
         )
 
         # Update the last sent invoice with the new licenses. We just need to update `quantity` in
@@ -3902,11 +3933,12 @@ class BillingSession(ABC):
             if not plan.customer.exempt_from_license_number_check:
                 assert self.get_current_billed_license_count() <= licenses
             assert licenses > plan.current_workplace_count()
-            LicenseLedger.objects.create(
+            self.create_license_ledger_entry(
                 plan=plan,
+                is_renewal=False,
                 event_time=event_time,
                 current_workplace_count=licenses,
-                next_renewal_workplace_count=licenses,
+                renewal_workplace_count=licenses,
             )
         elif licenses_at_next_renewal is not None:
             assert (
@@ -3915,11 +3947,12 @@ class BillingSession(ABC):
                 )
                 <= licenses_at_next_renewal
             )
-            LicenseLedger.objects.create(
+            self.create_license_ledger_entry(
                 plan=plan,
+                is_renewal=False,
                 event_time=event_time,
                 current_workplace_count=plan.current_workplace_count(),
-                next_renewal_workplace_count=licenses_at_next_renewal,
+                renewal_workplace_count=licenses_at_next_renewal,
             )
         else:
             raise AssertionError("Pass licenses or licenses_at_next_renewal")
@@ -3976,11 +4009,12 @@ class BillingSession(ABC):
             )
             licenses = max(licenses_at_next_renewal, last_ledger_entry.current_workplace_count)
 
-        LicenseLedger.objects.create(
+        self.create_license_ledger_entry(
             plan=plan,
+            is_renewal=False,
             event_time=event_time,
             current_workplace_count=licenses,
-            next_renewal_workplace_count=licenses_at_next_renewal,
+            renewal_workplace_count=licenses_at_next_renewal,
         )
 
         # Returning plan is particularly helpful for 'sync_license_ledger_if_needed'.
@@ -4013,6 +4047,7 @@ class BillingSession(ABC):
             "price_per_license": 0,
             "billing_schedule": CustomerPlan.BILLING_SCHEDULE_ANNUAL,
             "automanage_licenses": True,
+            "user_group_billing_enabled": False,
         }
         complimentary_access_plan = CustomerPlan.objects.create(
             customer=customer,
@@ -4027,12 +4062,12 @@ class BillingSession(ABC):
             billed_licenses = 0
 
         # Create a ledger entry for the complimentary access plan for tracking purposes.
-        ledger_entry = LicenseLedger.objects.create(
+        ledger_entry = self.create_license_ledger_entry(
             plan=complimentary_access_plan,
             is_renewal=True,
             event_time=complimentary_access_plan_anchor,
             current_workplace_count=billed_licenses,
-            next_renewal_workplace_count=billed_licenses,
+            renewal_workplace_count=billed_licenses,
         )
         complimentary_access_plan.invoiced_through = ledger_entry
         complimentary_access_plan.save(update_fields=["invoiced_through"])
@@ -4069,6 +4104,7 @@ class BillingSession(ABC):
             "price_per_license": 0,
             "billing_schedule": CustomerPlan.BILLING_SCHEDULE_ANNUAL,
             "automanage_licenses": True,
+            "user_group_billing_enabled": False,
         }
         community_plan = CustomerPlan.objects.create(
             customer=customer,
@@ -4082,12 +4118,12 @@ class BillingSession(ABC):
 
         # Create a ledger entry for the community plan for tracking purposes.
         # Also, since it is an active plan we need to it have at least one license ledger entry.
-        ledger_entry = LicenseLedger.objects.create(
+        ledger_entry = self.create_license_ledger_entry(
             plan=community_plan,
             is_renewal=True,
             event_time=now,
             current_workplace_count=billed_licenses,
-            next_renewal_workplace_count=billed_licenses,
+            renewal_workplace_count=billed_licenses,
         )
         community_plan.invoiced_through = ledger_entry
         community_plan.save(update_fields=["invoiced_through"])
