@@ -1229,7 +1229,8 @@ function populate_number_of_users(raw_data: unknown): void {
             series: [
                 {
                     label: $t({defaultMessage: "Date"}),
-                    value: (_u, v) => format_date(new Date(v * 1000), false),
+                    value: (_u, v) =>
+                        Number.isFinite(v) ? format_date(new Date(v * 1000), false) : "—",
                 },
                 {
                     label: series_label,
