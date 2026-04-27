@@ -121,7 +121,6 @@ p {
     color: hsl(0deg 0% 67%);
 }
 
-#read_hover_everyone,
 #hover_human {
     margin-left: 10px;
 }
@@ -143,10 +142,12 @@ p {
     height: 400px;
     width: 750px;
     position: relative;
+}
 
-    &[last_value_is_partial="true"] .points path:last-of-type {
-        opacity: 0.5;
-    }
+#id_messages_sent_over_time[last_value_is_partial="true"]
+    .points
+    path:last-of-type {
+    opacity: 0.5;
 }
 
 #id_number_of_users {
@@ -154,11 +155,14 @@ p {
     position: relative;
 }
 
-#user_range_presets {
+#user_range_presets,
+#read_daily_range_presets,
+#read_weekly_range_presets {
     margin-top: 4px;
 }
 
-#id_number_of_users_ranger {
+#id_number_of_users_ranger,
+#id_messages_read_ranger {
     position: relative;
     width: 750px;
     margin-top: 32px;
@@ -210,7 +214,6 @@ p {
     display: none;
 }
 
-#read_hover_info,
 #hoverinfo,
 #pie_messages_sent_by_type_total {
     float: right;
@@ -226,7 +229,6 @@ p {
     height: 0;
 }
 
-#read_hover_info,
 #hoverinfo {
     display: none;
     position: relative;

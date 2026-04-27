@@ -1031,6 +1031,94 @@ function apply_x_range_preset(
     });
 }
 
+// Returns a uPlot path builder that draws bars for one series within
+// a group of `num_series` series, with bars centered on each x value
+// and the group filling `factor` of the inter-x spacing.
+function make_grouped_bars_paths(
+    series_idx: number,
+    num_series: number,
+    factor: number,
+): UPlot.Series.PathBuilder {
+    function bar_width(u: UPlot): number {
+        const xs = u.data[0];
+        const x_step = xs.length > 1 ? Number(xs[1]) - Number(xs[0]) : 0;
+        return (x_step * factor) / num_series;
+    }
+    return UPlot.paths.bars!({
+        size: [1, 100],
+        align: 0,
+        disp: {
+            x0: {
+                unit: 1,
+                values(u) {
+                    const xs = u.data[0];
+                    const w = bar_width(u);
+                    const offset = (series_idx - (num_series - 1) / 2) * w;
+                    return Array.from(xs, (x) => x + offset - w / 2);
+                },
+            },
+            size: {
+                unit: 1,
+                values(u) {
+                    const xs = u.data[0];
+                    const w = bar_width(u);
+                    return Array.from(xs, () => w);
+                },
+            },
+        },
+    });
+}
+
+// drawSeries hook that fades the last visible bar of each shown
+// series, used to indicate that the most recent bucket is still
+// accumulating data. Must use the same num_series and factor as the
+// matching make_grouped_bars_paths.
+function make_fade_last_bar_hook(
+    num_series: number,
+    factor: number,
+): (u: UPlot, sidx: number) => void {
+    return (u, sidx) => {
+        if (sidx === 0 || u.series[sidx]?.show !== true) {
+            return;
+        }
+        const xs = u.data[0];
+        const ys = u.data[sidx]!;
+        if (xs.length === 0) {
+            return;
+        }
+        const last_idx = xs.length - 1;
+        const last_x = Number(xs[last_idx]);
+        const last_y: number | null | undefined = ys[last_idx];
+        if (last_y === null || last_y === undefined) {
+            return;
+        }
+        const x_min = u.scales["x"]?.min;
+        const x_max = u.scales["x"]?.max;
+        if (x_min === undefined || x_max === undefined) {
+            return;
+        }
+        if (last_x < x_min || last_x > x_max) {
+            return;
+        }
+        const x_step = xs.length > 1 ? Number(xs[1]) - Number(xs[0]) : 0;
+        const w = (x_step * factor) / num_series;
+        // Series start at sidx=1; sidx-1 is the index within the bar group.
+        const offset = (sidx - 1 - (num_series - 1) / 2) * w;
+        const x_left = u.valToPos(last_x + offset - w / 2, "x", true);
+        const x_right = u.valToPos(last_x + offset + w / 2, "x", true);
+        const y_zero = u.valToPos(0, "y", true);
+        const y_top = u.valToPos(last_y, "y", true);
+        const ctx = u.ctx;
+        ctx.save();
+        // destination-out with semi-transparent black removes alpha from
+        // the already-drawn bar, halving its opacity.
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(x_left, y_top, x_right - x_left, y_zero - y_top);
+        ctx.restore();
+    };
+}
+
 type Ranger = {
     set_range: (min: number, max: number) => void;
     update_data: (new_data: UPlot.AlignedData) => void;
@@ -1042,12 +1130,18 @@ type RangerSeriesConfig = {stroke: string; fill: string};
 function make_ranger(
     ranger_container: HTMLElement,
     initial_data: UPlot.AlignedData,
-    data_min: number,
-    data_max: number,
+    initial_data_min: number,
+    initial_data_max: number,
     width: number,
     series_configs: RangerSeriesConfig[],
     on_range_change: (range_min: number, range_max: number) => void,
 ): Ranger {
+    // Mutable so that update_data can reflect a new x range when the
+    // caller swaps the underlying dataset (e.g. switching aggregation
+    // mode in the messages-read chart).
+    let data_min = initial_data_min;
+    let data_max = initial_data_max;
+
     const overlay = ranger_container.querySelector<HTMLElement>(".ranger-overlay")!;
     const masks = [...overlay.querySelectorAll<HTMLElement>(".ranger-mask")];
     const grips = [...overlay.querySelectorAll<HTMLElement>(".ranger-grip")];
@@ -1095,8 +1189,10 @@ function make_ranger(
     let sel_min = data_min;
     let sel_max = data_max;
 
-    // uPlot's valToPos(val, "x") returns CSS pixels relative to the *plotting area*
-    // left edge.
+    // The overlay maps the selection range to canvas pixels directly
+    // from data_min/data_max rather than via overview.valToPos, which
+    // can return offset positions when uPlot expands the x scale to
+    // nice-tick boundaries on dataset switches.
     function update_overlay(): void {
         // Half-width of each grip handle in CSS pixels (full grip is 8 px wide,
         // matching the .ranger-grip width in stats.css).
@@ -1104,12 +1200,14 @@ function make_ranger(
         if (overview.bbox.width === 0) {
             return;
         }
-        // To get the position relative to the outer container we add
-        // bbox.left / UPlot.pxRatio, where bbox is in canvas pixels.
         const bbox_left_css = overview.bbox.left / UPlot.pxRatio;
-        const bbox_right_css = (overview.bbox.left + overview.bbox.width) / UPlot.pxRatio;
-        const min_x = bbox_left_css + overview.valToPos(sel_min, "x");
-        const max_x = bbox_left_css + overview.valToPos(sel_max, "x");
+        const bbox_width_css = overview.bbox.width / UPlot.pxRatio;
+        const bbox_right_css = bbox_left_css + bbox_width_css;
+        function val_to_x(val: number): number {
+            return bbox_left_css + ((val - data_min) / (data_max - data_min)) * bbox_width_css;
+        }
+        const min_x = val_to_x(sel_min);
+        const max_x = val_to_x(sel_max);
 
         mask_left!.style.left = `${bbox_left_css}px`;
         mask_left!.style.width = `${Math.max(0, min_x - GRIP_HALF_WIDTH - bbox_left_css)}px`;
@@ -1158,16 +1256,20 @@ function make_ranger(
         });
     }
 
-    // For large datasets, use 2% of the total range so the minimum window
-    // grows proportionally rather than staying fixed at one week.
+    // For large datasets, use 2% of the total range so the minimum
+    // window grows proportionally rather than staying fixed at one
+    // week.  Computed lazily because data_min/data_max can change via
+    // update_data.
     const ONE_WEEK_SECS = 86_400 * 7;
-    const MIN_RANGE = Math.max((data_max - data_min) * 0.02, ONE_WEEK_SECS);
+    function min_range(): number {
+        return Math.max((data_max - data_min) * 0.02, ONE_WEEK_SECS);
+    }
 
     attach_drag(grip_left!, (val_delta, start_min) => {
-        sel_min = Math.max(data_min, Math.min(start_min + val_delta, sel_max - MIN_RANGE));
+        sel_min = Math.max(data_min, Math.min(start_min + val_delta, sel_max - min_range()));
     });
     attach_drag(grip_right!, (val_delta, _start_min, start_max) => {
-        sel_max = Math.min(data_max, Math.max(start_max + val_delta, sel_min + MIN_RANGE));
+        sel_max = Math.min(data_max, Math.max(start_max + val_delta, sel_min + min_range()));
     });
     attach_drag(selected, (val_delta, start_min, start_max) => {
         const window_size = start_max - start_min;
@@ -1186,7 +1288,18 @@ function make_ranger(
             update_overlay();
         },
         update_data(new_data: UPlot.AlignedData): void {
-            overview.setData(new_data);
+            const xs = new_data[0];
+            if (xs !== undefined && xs.length > 0) {
+                data_min = xs[0]!;
+                data_max = xs.at(-1)!;
+                sel_min = data_min;
+                sel_max = data_max;
+            }
+            // Pass resetScales=false so uPlot doesn't auto-expand the x
+            // scale to a nice-tick boundary (which makes valToPos return
+            // an offset position for xs[0] / xs[-1]).
+            overview.setData(new_data, false);
+            overview.setScale("x", {min: data_min, max: data_max});
             update_overlay();
         },
         destroy(): void {
@@ -1394,107 +1507,9 @@ function populate_messages_read_over_time(raw_data: unknown): void {
         return;
     }
 
-    // Helper functions
-    function make_traces(
-        dates: Date[],
-        values: DataByEveryoneMe<number[]>,
-        type: Plotly.PlotType,
-        date_formatter: DateFormatter,
-    ): DataByEveryoneMe<Partial<Plotly.PlotData>> {
-        const text = dates.map((date) => date_formatter(date));
-        const common: Partial<Plotly.PlotData> = {
-            x: dates,
-            type,
-            hoverinfo: "none",
-            text,
-            textposition: "none",
-        };
-        return {
-            everyone: {
-                name: $t({defaultMessage: "Everyone"}),
-                y: values.everyone,
-                marker: {color: "#5f6ea0"},
-                ...common,
-            },
-            me: {
-                name: $t({defaultMessage: "Me"}),
-                y: values.me,
-                marker: {color: "#be6d68"},
-                ...common,
-            },
-        };
-    }
-
-    const layout: Partial<Plotly.Layout> = {
-        barmode: "group",
-        width: CHART_WIDTH,
-        height: 400,
-        margin: {l: 40, r: 10, b: 40, t: 0},
-        xaxis: {
-            fixedrange: true,
-            rangeslider: {bordercolor: "#D8D8D8", borderwidth: 1},
-            type: "date",
-            tickangle: 0,
-        },
-        yaxis: {fixedrange: true, rangemode: "tozero"},
-        legend: {
-            x: 0.62,
-            y: 1.12,
-            orientation: "h",
-            font: font_14pt,
-        },
-        font: font_12pt,
-    };
-
-    // This is also the cumulative rangeselector
-    const daily_rangeselector = make_rangeselector(
-        {count: 10, label: $t({defaultMessage: "Last 10 days"}), step: "day"},
-        {count: 30, label: $t({defaultMessage: "Last 30 days"}), step: "day"},
-    );
-    const weekly_rangeselector = make_rangeselector(
-        {count: 2, label: $t({defaultMessage: "Last 2 months"}), step: "month"},
-        {count: 6, label: $t({defaultMessage: "Last 6 months"}), step: "month"},
-    );
-
-    function add_hover_handler(): void {
-        document
-            .querySelector<Plotly.PlotlyHTMLElement>("#id_messages_read_over_time")!
-            .on("plotly_hover", (data) => {
-                $("#read_hover_info").show();
-                document.querySelector("#read_hover_date")!.textContent =
-                    data.points[0]!.data.text[data.points[0]!.pointNumber]!;
-                const values: Plotly.Datum[] = [null, null];
-                for (const trace of data.points) {
-                    values[trace.curveNumber] = trace.y;
-                }
-                const read_hover_text_ids = ["#read_hover_me", "#read_hover_everyone"];
-                const read_hover_value_ids = ["#read_hover_me_value", "#read_hover_everyone_value"];
-                for (const [i, value] of values.entries()) {
-                    if (value !== null) {
-                        document.querySelector<HTMLElement>(
-                            read_hover_text_ids[i]!,
-                        )!.style.display = "inline";
-                        document.querySelector<HTMLElement>(
-                            read_hover_value_ids[i]!,
-                        )!.style.display = "inline";
-                        document.querySelector<HTMLElement>(read_hover_value_ids[i]!)!.textContent =
-                            value.toString();
-                    } else {
-                        document.querySelector<HTMLElement>(
-                            read_hover_text_ids[i]!,
-                        )!.style.display = "none";
-                        document.querySelector<HTMLElement>(
-                            read_hover_value_ids[i]!,
-                        )!.style.display = "none";
-                    }
-                }
-            });
-    }
-
     const start_dates = data.end_times.map(
-        (timestamp: number) =>
-            // data.end_times are the ends of hour long intervals.
-            new Date(timestamp * 1000 - 60 * 60 * 1000),
+        // data.end_times are the ends of hour long intervals.
+        (timestamp) => new Date(timestamp * 1000 - 60 * 60 * 1000),
     );
 
     function aggregate_data(
@@ -1505,15 +1520,11 @@ function populate_messages_read_over_time(raw_data: unknown): void {
         let is_boundary;
         if (aggregation === "day") {
             start = floor_to_local_day(start_dates[0]!);
-            is_boundary = function (date: Date) {
-                return date.getHours() === 0;
-            };
+            is_boundary = (date: Date) => date.getHours() === 0;
         } else {
             assert(aggregation === "week");
             start = floor_to_local_week(start_dates[0]!);
-            is_boundary = function (date: Date) {
-                return date.getHours() === 0 && date.getDay() === 0;
-            };
+            is_boundary = (date: Date) => date.getHours() === 0 && date.getDay() === 0;
         }
         const dates = [start];
         const values: DataByEveryoneMe<number[]> = {everyone: [], me: []};
@@ -1544,110 +1555,282 @@ function populate_messages_read_over_time(raw_data: unknown): void {
         };
     }
 
-    // Generate traces
-    let date_formatter = function (date: Date): string {
-        return format_date(date, true);
+    type ReadView = {
+        kind: "bar" | "line";
+        xs: Float64Array;
+        me: Float64Array;
+        everyone: Float64Array;
+        last_value_is_partial: boolean;
+        format_date: (date: Date) => string;
     };
-    let values = {me: data.user.read, everyone: data.everyone.read};
 
-    let info = aggregate_data(data, "day");
-    date_formatter = function (date) {
-        return format_date(date, false);
+    function dates_to_xs(dates: Date[]): Float64Array {
+        return new Float64Array(dates.map((d) => d.getTime() / 1000));
+    }
+
+    const daily_info = aggregate_data(data, "day");
+    const daily_view: ReadView = {
+        kind: "bar",
+        xs: dates_to_xs(daily_info.dates),
+        me: new Float64Array(daily_info.values.me),
+        everyone: new Float64Array(daily_info.values.everyone),
+        last_value_is_partial: daily_info.last_value_is_partial,
+        format_date: (date) => format_date(date, false),
     };
-    const last_day_is_partial = info.last_value_is_partial;
-    const daily_traces = make_traces(info.dates, info.values, "bar", date_formatter);
 
-    info = aggregate_data(data, "week");
-    date_formatter = function (date) {
-        return $t({defaultMessage: "Week of {date}"}, {date: format_date(date, false)});
+    const weekly_info = aggregate_data(data, "week");
+    const weekly_view: ReadView = {
+        kind: "bar",
+        xs: dates_to_xs(weekly_info.dates),
+        me: new Float64Array(weekly_info.values.me),
+        everyone: new Float64Array(weekly_info.values.everyone),
+        last_value_is_partial: weekly_info.last_value_is_partial,
+        format_date: (date) =>
+            $t({defaultMessage: "Week of {date}"}, {date: format_date(date, false)}),
     };
-    const last_week_is_partial = info.last_value_is_partial;
-    const weekly_traces = make_traces(info.dates, info.values, "bar", date_formatter);
 
-    const dates = data.end_times.map((timestamp: number) => new Date(timestamp * 1000));
-    values = {everyone: partial_sums(data.everyone.read), me: partial_sums(data.user.read)};
-    date_formatter = function (date) {
-        return format_date(date, true);
+    const cumulative_dates = data.end_times.map((t) => new Date(t * 1000));
+    const cumulative_view: ReadView = {
+        kind: "line",
+        xs: dates_to_xs(cumulative_dates),
+        me: new Float64Array(partial_sums(data.user.read)),
+        everyone: new Float64Array(partial_sums(data.everyone.read)),
+        last_value_is_partial: false,
+        format_date: (date) => format_date(date, true),
     };
-    const cumulative_traces = make_traces(dates, values, "scatter", date_formatter);
 
-    // Functions to draw and interact with the plot
+    const me_color = "rgb(190, 109, 104)";
+    const everyone_color = "rgb(95, 110, 160)";
+    const me_fill = "rgba(190, 109, 104, 0.7)";
+    const everyone_fill = "rgba(95, 110, 160, 0.7)";
 
-    // We need to redraw plot entirely if switching from (the cumulative) line
-    // graph to any bar graph, since otherwise the rangeselector shows both (plotly bug)
-    let clicked_cumulative = false;
+    const container = document.querySelector<HTMLElement>("#id_messages_read_over_time")!;
+    const ranger_container = document.querySelector<HTMLElement>("#id_messages_read_ranger")!;
 
-    function draw_or_update_plot(
-        rangeselector: Partial<Plotly.RangeSelector>,
-        traces: DataByEveryoneMe<Partial<Plotly.PlotData>>,
-        last_value_is_partial: boolean,
-        initial_draw: boolean,
-    ): void {
+    const ALL_PRESET_BUTTONS =
+        "#read_10day_range, #read_30day_range, #read_daily_all_time_range, " +
+        "#read_2month_range, #read_6month_range, #read_weekly_all_time_range";
+
+    const BAR_FACTOR = 0.7;
+
+    let uplot_instance: UPlot | null = null;
+    let ranger: Ranger | null = null;
+    let range_preset_pending = false;
+    // Series visibility persists across aggregation changes.  Initial:
+    // Everyone shown, Me hidden (matches the original Plotly chart).
+    const series_show: {me: boolean; everyone: boolean} = {me: false, everyone: true};
+    let current_view: ReadView = daily_view;
+
+    function preset_data_min(view: ReadView): number {
+        return view.xs[0] ?? 0;
+    }
+    function preset_data_max(view: ReadView): number {
+        return view.xs.at(-1) ?? 0;
+    }
+
+    function deselect_preset_buttons(): void {
+        $(ALL_PRESET_BUTTONS).removeClass("selected");
+    }
+
+    function default_all_time_button(view: ReadView): JQuery {
+        return view === weekly_view
+            ? $("#read_weekly_all_time_range")
+            : $("#read_daily_all_time_range");
+    }
+
+    function show_preset_row_for(view: ReadView): void {
+        if (view === weekly_view) {
+            $("#read_daily_range_presets").hide();
+            $("#read_weekly_range_presets").show();
+        } else {
+            $("#read_daily_range_presets").show();
+            $("#read_weekly_range_presets").hide();
+        }
+    }
+
+    function make_opts(view: ReadView): UPlot.Options {
+        const is_bar = view.kind === "bar";
+        return {
+            width: CHART_WIDTH,
+            height: 400,
+            scales: {
+                x: {time: true},
+                y: {range: (_u, _min, max) => [0, max !== null && max > 0 ? max : 1]},
+            },
+            axes: [
+                {},
+                {
+                    // uPlot's default y-axis size of 50px clips labels for the
+                    // cumulative view, where values reach the hundred-thousands.
+                    // values is null on the pre-tick call.
+                    size(_u, values) {
+                        if (values === null) {
+                            return 50;
+                        }
+                        const max_chars = Math.max(0, ...values.map((v) => v.length));
+                        return Math.max(50, max_chars * 7 + 12);
+                    },
+                },
+            ],
+            series: [
+                {
+                    label: $t({defaultMessage: "Date"}),
+                    value: (_u, v) =>
+                        Number.isFinite(v) ? view.format_date(new Date(v * 1000)) : "—",
+                },
+                {
+                    label: $t({defaultMessage: "Me"}),
+                    show: series_show.me,
+                    stroke: me_color,
+                    width: 2,
+                    points: {show: false},
+                    ...(is_bar
+                        ? {fill: me_fill, paths: make_grouped_bars_paths(0, 2, BAR_FACTOR)}
+                        : {}),
+                },
+                {
+                    label: $t({defaultMessage: "Everyone"}),
+                    show: series_show.everyone,
+                    stroke: everyone_color,
+                    width: 2,
+                    points: {show: false},
+                    ...(is_bar
+                        ? {fill: everyone_fill, paths: make_grouped_bars_paths(1, 2, BAR_FACTOR)}
+                        : {}),
+                },
+            ],
+            cursor: {
+                y: false,
+                drag: {setScale: true, x: true, y: false},
+            },
+            ...(is_bar && view.last_value_is_partial
+                ? {hooks: {drawSeries: [make_fade_last_bar_hook(2, BAR_FACTOR)]}}
+                : {}),
+        };
+    }
+
+    function apply_preset_range($button: JQuery, preset: XRangePreset): void {
+        if (uplot_instance === null) {
+            return;
+        }
+        range_preset_pending = true;
+        apply_x_range_preset(
+            uplot_instance,
+            preset_data_min(current_view),
+            preset_data_max(current_view),
+            preset,
+        );
+        deselect_preset_buttons();
+        $button.addClass("selected");
+    }
+
+    function draw_plot(view: ReadView): void {
+        if (uplot_instance === null) {
+            // First draw: clear the loading spinner.
+            $("#id_messages_read_over_time > div").removeClass("spinner");
+        } else {
+            // Persist series visibility across destroy/recreate so legend
+            // toggles survive aggregation changes.
+            series_show.me = uplot_instance.series[1]?.show ?? series_show.me;
+            series_show.everyone = uplot_instance.series[2]?.show ?? series_show.everyone;
+            uplot_instance.destroy();
+        }
+        current_view = view;
+        const u_data: UPlot.AlignedData = [view.xs, view.me, view.everyone];
+        uplot_instance = new UPlot(make_opts(view), u_data, container);
+
+        // Sync ranger and deselect preset buttons whenever the x scale
+        // changes (drag-to-zoom on the main chart or ranger drag).  The
+        // hook fires asynchronously, so range_preset_pending guards
+        // against a synchronous click handler that just selected a
+        // button.
+        (uplot_instance.hooks.setScale ??= []).push((_u, scaleKey) => {
+            if (scaleKey !== "x") {
+                return;
+            }
+            if (!range_preset_pending) {
+                deselect_preset_buttons();
+            }
+            range_preset_pending = false;
+            if (ranger === null) {
+                return;
+            }
+            const {min, max} = _u.scales["x"]!;
+            if (min !== undefined && max !== undefined) {
+                ranger.set_range(min, max);
+            }
+        });
+
+        // Double-click resets to the full x range.
+        uplot_instance.over.addEventListener("dblclick", () => {
+            apply_preset_range(default_all_time_button(current_view), null);
+        });
+
+        if (ranger === null) {
+            ranger = make_ranger(
+                ranger_container,
+                u_data,
+                preset_data_min(view),
+                preset_data_max(view),
+                CHART_WIDTH,
+                [
+                    {stroke: me_color, fill: me_fill},
+                    {stroke: everyone_color, fill: everyone_fill},
+                ],
+                (range_min, range_max) => {
+                    uplot_instance?.setScale("x", {min: range_min, max: range_max});
+                },
+            );
+        } else {
+            ranger.update_data(u_data);
+        }
+    }
+
+    function set_view($button: JQuery, view: ReadView): void {
         $("#read_daily_button, #read_weekly_button, #read_cumulative_button").removeClass(
             "selected",
         );
-        $("#id_messages_read_over_time > div").removeClass("spinner");
-        if (initial_draw) {
-            traces.everyone.visible = true;
-            traces.me.visible = "legendonly";
-        } else {
-            const plotDiv = document.querySelector<Plotly.PlotlyHTMLElement>(
-                "#id_messages_read_over_time",
-            )!;
-            assert("visible" in plotDiv.data[0]!);
-            assert("visible" in plotDiv.data[1]!);
-            traces.me.visible = plotDiv.data[0].visible;
-            traces.everyone.visible = plotDiv.data[1].visible;
-        }
-        layout.xaxis!.rangeselector = rangeselector;
-        if (clicked_cumulative || initial_draw) {
-            void Plotly.newPlot(
-                "id_messages_read_over_time",
-                [traces.me, traces.everyone],
-                layout,
-                {
-                    displayModeBar: false,
-                },
-            );
-            add_hover_handler();
-        } else {
-            void Plotly.deleteTraces("id_messages_read_over_time", [0, 1]);
-            void Plotly.addTraces("id_messages_read_over_time", [traces.me, traces.everyone]);
-            void Plotly.relayout("id_messages_read_over_time", layout);
-        }
-        $("#id_messages_read_over_time").attr(
-            "last_value_is_partial",
-            last_value_is_partial.toString(),
-        );
+        $button.addClass("selected");
+        range_preset_pending = true;
+        draw_plot(view);
+        show_preset_row_for(view);
+        deselect_preset_buttons();
+        default_all_time_button(view).addClass("selected");
     }
 
-    // Click handlers for aggregation buttons
     $("#read_daily_button").on("click", function () {
-        draw_or_update_plot(daily_rangeselector, daily_traces, last_day_is_partial, false);
-        $(this).addClass("selected");
-        clicked_cumulative = false;
+        set_view($(this), daily_view);
     });
-
     $("#read_weekly_button").on("click", function () {
-        draw_or_update_plot(weekly_rangeselector, weekly_traces, last_week_is_partial, false);
-        $(this).addClass("selected");
-        clicked_cumulative = false;
+        set_view($(this), weekly_view);
     });
-
     $("#read_cumulative_button").on("click", function () {
-        clicked_cumulative = false;
-        draw_or_update_plot(daily_rangeselector, cumulative_traces, false, false);
-        $(this).addClass("selected");
-        clicked_cumulative = true;
+        set_view($(this), cumulative_view);
     });
 
-    // Initial drawing of plot
-    if (weekly_traces.everyone.x!.length < 12) {
-        draw_or_update_plot(daily_rangeselector, daily_traces, last_day_is_partial, true);
-        $("#read_daily_button").addClass("selected");
+    $("#read_10day_range").on("click", function () {
+        apply_preset_range($(this), {days: 10});
+    });
+    $("#read_30day_range").on("click", function () {
+        apply_preset_range($(this), {days: 30});
+    });
+    $("#read_daily_all_time_range").on("click", function () {
+        apply_preset_range($(this), null);
+    });
+    $("#read_2month_range").on("click", function () {
+        apply_preset_range($(this), {months: 2});
+    });
+    $("#read_6month_range").on("click", function () {
+        apply_preset_range($(this), {months: 6});
+    });
+    $("#read_weekly_all_time_range").on("click", function () {
+        apply_preset_range($(this), null);
+    });
+
+    if (weekly_view.xs.length < 12) {
+        set_view($("#read_daily_button"), daily_view);
     } else {
-        draw_or_update_plot(weekly_rangeselector, weekly_traces, last_week_is_partial, true);
-        $("#read_weekly_button").addClass("selected");
+        set_view($("#read_weekly_button"), weekly_view);
     }
 }
 
