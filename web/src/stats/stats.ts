@@ -1004,11 +1004,40 @@ function populate_messages_sent_by_message_type(raw_data: unknown): void {
     });
 }
 
+// `null` preset means "all time" (full data range); otherwise the
+// preset specifies how far back from data_max the start should be.
+type XRangePreset = {months: number} | {days: number} | null;
+
+function apply_x_range_preset(
+    u: UPlot,
+    data_min: number,
+    data_max: number,
+    preset: XRangePreset,
+): void {
+    if (preset === null) {
+        u.setScale("x", {min: data_min, max: data_max});
+        return;
+    }
+    const min_date = new Date(data_max * 1000);
+    if ("months" in preset) {
+        min_date.setMonth(min_date.getMonth() - preset.months);
+    } else {
+        min_date.setDate(min_date.getDate() - preset.days);
+    }
+    // Clamp to data_min so the range never extends before the first data point.
+    u.setScale("x", {
+        min: Math.max(data_min, min_date.getTime() / 1000),
+        max: data_max,
+    });
+}
+
 type Ranger = {
     set_range: (min: number, max: number) => void;
     update_data: (new_data: UPlot.AlignedData) => void;
     destroy: () => void;
 };
+
+type RangerSeriesConfig = {stroke: string; fill: string};
 
 function make_ranger(
     ranger_container: HTMLElement,
@@ -1016,8 +1045,7 @@ function make_ranger(
     data_min: number,
     data_max: number,
     width: number,
-    stroke: string,
-    fill: string,
+    series_configs: RangerSeriesConfig[],
     on_range_change: (range_min: number, range_max: number) => void,
 ): Ranger {
     const overlay = ranger_container.querySelector<HTMLElement>(".ranger-overlay")!;
@@ -1033,7 +1061,15 @@ function make_ranger(
             height: 55,
             cursor: {show: false},
             legend: {show: false},
-            series: [{}, {stroke, fill, width: 1, points: {show: false}}],
+            series: [
+                {},
+                ...series_configs.map((config) => ({
+                    stroke: config.stroke,
+                    fill: config.fill,
+                    width: 1,
+                    points: {show: false},
+                })),
+            ],
             axes: [{show: false}, {show: false}],
             scales: {
                 x: {time: true},
@@ -1236,23 +1272,12 @@ function populate_number_of_users(raw_data: unknown): void {
         $button.addClass("selected");
     }
 
-    function apply_preset_range($button: JQuery, months: number | null): void {
+    function apply_preset_range($button: JQuery, preset: XRangePreset): void {
         if (uplot_instance === null) {
             return;
         }
         range_preset_pending = true;
-        if (months === null) {
-            uplot_instance.setScale("x", {min: data_min, max: data_max});
-        } else {
-            const min_date = new Date(data_max * 1000);
-            min_date.setMonth(min_date.getMonth() - months);
-            // Clamp to data_min so the range never extends before the first data
-            // point.
-            uplot_instance.setScale("x", {
-                min: Math.max(data_min, min_date.getTime() / 1000),
-                max: data_max,
-            });
-        }
+        apply_x_range_preset(uplot_instance, data_min, data_max, preset);
         select_preset_range_button($button);
     }
 
@@ -1301,8 +1326,7 @@ function populate_number_of_users(raw_data: unknown): void {
                 data_min,
                 data_max,
                 CHART_WIDTH,
-                series_stroke,
-                series_fill,
+                [{stroke: series_stroke, fill: series_fill}],
                 (range_min, range_max) => {
                     uplot_instance?.setScale("x", {min: range_min, max: range_max});
                 },
@@ -1329,11 +1353,11 @@ function populate_number_of_users(raw_data: unknown): void {
     const total_label = $t({defaultMessage: "Total users"});
 
     $("#users_2month_range").on("click", function () {
-        apply_preset_range($(this), 2);
+        apply_preset_range($(this), {months: 2});
     });
 
     $("#users_6month_range").on("click", function () {
-        apply_preset_range($(this), 6);
+        apply_preset_range($(this), {months: 6});
     });
 
     $("#users_all_time_range").on("click", function () {
