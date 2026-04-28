@@ -6424,6 +6424,68 @@ class LicenseLedgerTest(StripeTestCase):
         self.assertEqual(plan.automanage_licenses, True)
 
 
+class UserGroupBillingTest(StripeTestCase):
+    def test_ledger_entry_when_user_group_billing_enabled(self) -> None:
+        realm = get_realm("zulip")
+        customer = Customer.objects.create(realm=realm, stripe_customer_id="cus_12345")
+        plan = CustomerPlan.objects.create(
+            customer=customer,
+            status=CustomerPlan.ACTIVE,
+            billing_cycle_anchor=timezone_now(),
+            billing_schedule=CustomerPlan.BILLING_SCHEDULE_ANNUAL,
+            tier=CustomerPlan.TIER_CLOUD_STANDARD,
+            user_group_billing_enabled=True,
+        )
+        billing_session = RealmBillingSession(realm=get_realm("zulip"))
+        with self.assertRaises(AssertionError):
+            billing_session.create_license_ledger_entry(
+                plan=plan,
+                is_renewal=True,
+                event_time=timezone_now(),
+                current_workplace_count=self.seat_count,
+                renewal_workplace_count=self.seat_count,
+            )
+        billing_session.create_license_ledger_entry(
+            plan=plan,
+            is_renewal=True,
+            event_time=timezone_now(),
+            current_workplace_count=self.seat_count,
+            renewal_workplace_count=self.seat_count,
+            current_external_count=100,
+            renewal_external_count=100,
+        )
+
+    def test_ledger_entry_when_user_group_billing_disabled(self) -> None:
+        realm = get_realm("zulip")
+        customer = Customer.objects.create(realm=realm, stripe_customer_id="cus_12345")
+        plan = CustomerPlan.objects.create(
+            customer=customer,
+            status=CustomerPlan.ACTIVE,
+            billing_cycle_anchor=timezone_now(),
+            billing_schedule=CustomerPlan.BILLING_SCHEDULE_ANNUAL,
+            tier=CustomerPlan.TIER_CLOUD_STANDARD,
+            user_group_billing_enabled=False,
+        )
+        billing_session = RealmBillingSession(realm=get_realm("zulip"))
+        with self.assertRaises(AssertionError):
+            billing_session.create_license_ledger_entry(
+                plan=plan,
+                is_renewal=True,
+                event_time=timezone_now(),
+                current_workplace_count=self.seat_count,
+                renewal_workplace_count=self.seat_count,
+                current_external_count=100,
+                renewal_external_count=100,
+            )
+        billing_session.create_license_ledger_entry(
+            plan=plan,
+            is_renewal=True,
+            event_time=timezone_now(),
+            current_workplace_count=self.seat_count,
+            renewal_workplace_count=self.seat_count,
+        )
+
+
 class InvoiceTest(StripeTestCase):
     def test_invoicing_status_is_started(self) -> None:
         # local_upgrade uses hamlet as user, therefore realm is zulip.

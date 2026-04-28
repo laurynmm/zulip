@@ -41,8 +41,30 @@ class LicenseLedger(models.Model):
     # usually equal to the number of workplace users in the organization.
     next_renewal_workplace_count = models.IntegerField(null=True)
 
+    # For CustomerPlan objects with user_group_billing_enabled=True, i.e.,
+    # discounted billing rates for non-workplace users, the number of
+    # non-workplace user "spots" purchased by the organization at the time
+    # of ledger entry created. These "spots" are purchased in bundles, so
+    # this value will only increase when adding a user who is not in the
+    # billing entity's workplace_users_group would require purchasing an
+    # additional bundle of non-workplace user "spots". Should be null for
+    # plans with user_group_billing_enabled=False.
+    current_external_count = models.PositiveIntegerField(null=True)
+
+    # For CustomerPlan objects with user_group_billing_enabled=True, i.e.,
+    # discounted billing rates for non-workplace users,the number of
+    # non-workplace user "spots" that the organization needs in the next
+    # billing cycle. The value of next_renewal_external_count can increase or
+    # decrease for subsequent LicenseLedger entries in the same billing period.
+    # Should be null for plans with user_group_billing_enabled=False.
+    next_renewal_external_count = models.PositiveIntegerField(null=True)
+
     @override
     def __str__(self) -> str:
         ledger_type = "renewal" if self.is_renewal else "update"
         ledger_time = self.event_time.replace(tzinfo=None).isoformat(" ", "minutes")
-        return f"License {ledger_type}, {self.current_workplace_count} purchased, {self.next_renewal_workplace_count} next cycle, {ledger_time} (id={self.id})"
+        workplace_counts = f"{self.current_workplace_count} purchased, {self.next_renewal_workplace_count} next cycle"
+        if self.current_external_count is None:
+            return f"License {ledger_type}, {workplace_counts}, {ledger_time} (id={self.id})"
+        external_counts = f"{self.current_external_count} purchased, {self.next_renewal_external_count} next cycle"
+        return f"License {ledger_type}, workplace: {workplace_counts}, non-workplace: {external_counts}, {ledger_time} (id={self.id})"

@@ -985,8 +985,21 @@ class BillingSession(ABC):
         event_time: datetime,
         current_workplace_count: int,
         renewal_workplace_count: int,
+        current_external_count: int | None = None,
+        renewal_external_count: int | None = None,
     ) -> LicenseLedger:
         # TODO Implement two-tier billing for workplace user group.
+        if current_external_count is not None:
+            assert plan.user_group_billing_enabled
+            return LicenseLedger.objects.create(
+                plan=plan,
+                is_renewal=is_renewal,
+                event_time=event_time,
+                current_workplace_count=current_workplace_count,
+                next_renewal_workplace_count=renewal_workplace_count,
+                current_external_count=current_external_count,
+                next_renewal_external_count=renewal_external_count,
+            )
         assert not plan.user_group_billing_enabled
         return LicenseLedger.objects.create(
             plan=plan,
