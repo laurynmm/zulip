@@ -1033,6 +1033,92 @@ class BillingSession(ABC):
             },
         )
 
+    def create_customer_plan(
+        self,
+        *,
+        customer: Customer,
+        tier: int,
+        anchor_date: datetime,
+        billing_schedule: int,
+        charge_automatically: bool,
+        automanage_licenses: bool,
+        next_invoice_date: datetime | None,
+        status: int = CustomerPlan.ACTIVE,
+        invoicing_status: int = CustomerPlan.INVOICING_STATUS_DONE,
+        # TODO Implement two-tier billing for workplace user group.
+        user_group_billing_enabled: bool = False,
+        fixed_price: int | None = None,
+        price_per_license: int | None = None,
+        discount: str | None = None,
+        end_date: datetime | None = None,
+        create_audit_log: bool = True,
+    ) -> CustomerPlan:
+        # Only self-hosted community plans are never invoiced.
+        if next_invoice_date is None:
+            assert tier == CustomerPlan.TIER_SELF_HOSTED_COMMUNITY
+
+        if fixed_price is not None:
+            assert price_per_license is None
+            assert discount is None
+            # Fixed-price plans must have an end date.
+            assert end_date is not None
+            # Workplace user group billing is not available for fixed-price plans.
+            assert not user_group_billing_enabled
+            plan = CustomerPlan.objects.create(
+                customer=customer,
+                tier=tier,
+                billing_cycle_anchor=anchor_date,
+                status=status,
+                next_invoice_date=next_invoice_date,
+                invoicing_status=invoicing_status,
+                billing_schedule=billing_schedule,
+                charge_automatically=charge_automatically,
+                automanage_licenses=automanage_licenses,
+                user_group_billing_enabled=user_group_billing_enabled,
+                fixed_price=fixed_price,
+                end_date=end_date,
+            )
+        else:
+            assert price_per_license is not None
+            plan = CustomerPlan.objects.create(
+                customer=customer,
+                tier=tier,
+                billing_cycle_anchor=anchor_date,
+                status=status,
+                next_invoice_date=next_invoice_date,
+                invoicing_status=invoicing_status,
+                billing_schedule=billing_schedule,
+                charge_automatically=charge_automatically,
+                automanage_licenses=automanage_licenses,
+                user_group_billing_enabled=user_group_billing_enabled,
+                price_per_license=price_per_license,
+                discount=discount,
+                end_date=end_date,
+            )
+
+        if create_audit_log:
+            self.write_to_audit_log(
+                event_type=BillingSessionEventType.CUSTOMER_PLAN_CREATED,
+                event_time=timezone_now(),
+                extra_data={
+                    "customer_id": customer.id,
+                    "status": status,
+                    "tier": tier,
+                    "billing_cycle_anchor": anchor_date,
+                    "invoicing_status": invoicing_status,
+                    "next_invoice_date": next_invoice_date,
+                    "billing_schedule": billing_schedule,
+                    "charge_automatically": charge_automatically,
+                    "automanage_licenses": automanage_licenses,
+                    "user_group_billing_enabled": user_group_billing_enabled,
+                    "fixed_price": fixed_price,
+                    "price_per_license": price_per_license,
+                    "discount": discount,
+                    "end_date": end_date,
+                },
+            )
+        return plan
+
     @abstractmethod
     def update_or_create_customer(
         self, stripe_customer_id: str | None = None, *, defaults: dict[str, Any] | None = None
@@ -1557,10 +1643,6 @@ class BillingSession(ABC):
         required_plan_tier_name = CustomerPlan.name_from_tier(customer.required_plan_tier)
 
         fixed_price_cents = fixed_price * 100
-        fixed_price_plan_params: dict[str, Any] = {
-            "fixed_price": fixed_price_cents,
-            "tier": customer.required_plan_tier,
-        }
 
         current_plan = get_current_plan_by_customer(customer)
         if current_plan is not None and self.check_plan_tier_is_billable(current_plan.tier):
@@ -1575,30 +1657,25 @@ class BillingSession(ABC):
                 raise SupportRequestError(
                     f"New plan for {self.billing_entity_display_name} cannot be scheduled until all the invoices of the current plan are processed."
                 )
-            fixed_price_plan_params["billing_cycle_anchor"] = current_plan.end_date
-            fixed_price_plan_params["end_date"] = add_months(
-                current_plan.end_date, CustomerPlan.FIXED_PRICE_PLAN_DURATION_MONTHS
-            )
-            fixed_price_plan_params["status"] = CustomerPlan.NEVER_STARTED
-            fixed_price_plan_params["next_invoice_date"] = current_plan.end_date
-            fixed_price_plan_params["invoicing_status"] = (
-                CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT
-            )
-            fixed_price_plan_params["billing_schedule"] = current_plan.billing_schedule
-            fixed_price_plan_params["charge_automatically"] = current_plan.charge_automatically
-            # Manual license management is not available for fixed price plan.
-            fixed_price_plan_params["automanage_licenses"] = True
-            # Workplace user group billing is not available for fixed price plans.
-            fixed_price_plan_params["user_group_billing_enabled"] = False
 
-            CustomerPlan.objects.create(
+            self.create_customer_plan(
                 customer=customer,
-                **fixed_price_plan_params,
-            )
-            self.write_to_audit_log(
-                event_type=BillingSessionEventType.CUSTOMER_PLAN_CREATED,
-                event_time=timezone_now(),
-                extra_data=fixed_price_plan_params,
+                tier=customer.required_plan_tier,
+                anchor_date=current_plan.end_date,
+                billing_schedule=current_plan.billing_schedule,
+                charge_automatically=current_plan.charge_automatically,
+                # Manual license management is not available for fixed-price plans.
+                automanage_licenses=True,
+                next_invoice_date=current_plan.end_date,
+                status=CustomerPlan.NEVER_STARTED,
+                invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
+                # Workplace user group billing is not available for fixed-price plans.
+                user_group_billing_enabled=False,
+                fixed_price=fixed_price_cents,
+                price_per_license=None,
+                end_date=add_months(
+                    current_plan.end_date, CustomerPlan.FIXED_PRICE_PLAN_DURATION_MONTHS
+                ),
             )
 
             current_plan.status = CustomerPlan.SWITCH_PLAN_TIER_AT_PLAN_END
@@ -1980,17 +2057,12 @@ class BillingSession(ABC):
             # TODO Implement two-tier billing for workplace user group.
             user_group_billing_enabled = False
 
-            plan_params = {
-                "automanage_licenses": automanage_licenses,
-                "charge_automatically": charge_automatically,
-                "billing_cycle_anchor": billing_cycle_anchor,
-                "billing_schedule": billing_schedule,
-                "tier": plan_tier,
-                "user_group_billing_enabled": user_group_billing_enabled,
-            }
+            # Defaults for new CustomerPlan objects.
+            status = CustomerPlan.ACTIVE
+            invoicing_status = CustomerPlan.INVOICING_STATUS_DONE
 
             if free_trial:
-                plan_params["status"] = CustomerPlan.FREE_TRIAL
+                status = CustomerPlan.FREE_TRIAL
                 if charge_automatically:
                     # Ensure free trial customers not paying via invoice have a default payment method set
                     assert customer.stripe_customer_id is not None  # for mypy
@@ -2028,10 +2100,8 @@ class BillingSession(ABC):
                 # Setting status > CustomerPlan.LIVE_STATUS_THRESHOLD makes sure we
                 # don't have to worry about this plan being used for any other purpose.
                 # NOTE: This is the 2nd plan for the customer.
-                plan_params["status"] = CustomerPlan.NEVER_STARTED
-                plan_params["invoicing_status"] = (
-                    CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT
-                )
+                status = CustomerPlan.NEVER_STARTED
+                invoicing_status = CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT
 
                 # Schedule switching to the new paid plan for the complimentary
                 # access plan's end date.
@@ -2054,33 +2124,51 @@ class BillingSession(ABC):
                 complimentary_access_plan.status = CustomerPlan.ENDED
                 complimentary_access_plan.save(update_fields=["status"])
 
+            # Create plan and audit log entry.
             if fixed_price_plan_offer is None:
-                plan_params["price_per_license"] = price_per_license
                 _price_per_license, percent_off = get_price_per_license_and_discount(
                     plan_tier, billing_schedule, customer
                 )
-                plan_params["discount"] = percent_off
                 assert price_per_license == _price_per_license
+                plan = self.create_customer_plan(
+                    customer=customer,
+                    tier=plan_tier,
+                    anchor_date=billing_cycle_anchor,
+                    billing_schedule=billing_schedule,
+                    charge_automatically=charge_automatically,
+                    automanage_licenses=automanage_licenses,
+                    next_invoice_date=next_invoice_date,
+                    status=status,
+                    invoicing_status=invoicing_status,
+                    user_group_billing_enabled=user_group_billing_enabled,
+                    price_per_license=price_per_license,
+                    discount=percent_off,
+                )
             else:
-                # Manual license management is not available for fixed price plan.
+                # Manual license management is not available for fixed-price plans.
                 assert automanage_licenses is True
-                plan_params["fixed_price"] = fixed_price_plan_offer.fixed_price
-                period_end = add_months(
+                # Workplace user group billing is not available for fixed price plans.
+                assert user_group_billing_enabled is False
+                # Fixed-price plans always have an end date.
+                end_date = add_months(
                     billing_cycle_anchor, CustomerPlan.FIXED_PRICE_PLAN_DURATION_MONTHS
                 )
-                plan_params["end_date"] = period_end
                 fixed_price_plan_offer.status = CustomerPlanOffer.PROCESSED
                 fixed_price_plan_offer.save(update_fields=["status"])
-
-            # Create plan and audit log entry.
-            plan = CustomerPlan.objects.create(
-                customer=customer, next_invoice_date=next_invoice_date, **plan_params
-            )
-            self.write_to_audit_log(
-                event_type=BillingSessionEventType.CUSTOMER_PLAN_CREATED,
-                event_time=standardize_datetime_for_stripe(),
-                extra_data=plan_params,
-            )
+                plan = self.create_customer_plan(
+                    customer=customer,
+                    tier=plan_tier,
+                    anchor_date=billing_cycle_anchor,
+                    billing_schedule=billing_schedule,
+                    charge_automatically=charge_automatically,
+                    automanage_licenses=automanage_licenses,
+                    next_invoice_date=next_invoice_date,
+                    status=status,
+                    invoicing_status=invoicing_status,
+                    user_group_billing_enabled=user_group_billing_enabled,
+                    fixed_price=fixed_price_plan_offer.fixed_price,
+                    end_date=end_date,
+                )
 
             if upgrade_when_complimentary_access_plan_ends:
                 # The complimentary access plan and new upgrade plan have
@@ -2305,30 +2393,31 @@ class BillingSession(ABC):
             plan.tier, schedule, plan.customer
         )
 
-        new_plan = CustomerPlan.objects.create(
+        new_free_trial_plan = self.create_customer_plan(
             customer=plan.customer,
+            tier=plan.tier,
+            anchor_date=plan.billing_cycle_anchor,
+            next_invoice_date=next_billing_cycle,
             billing_schedule=schedule,
-            automanage_licenses=plan.automanage_licenses,
             charge_automatically=plan.charge_automatically,
+            automanage_licenses=plan.automanage_licenses,
+            status=CustomerPlan.FREE_TRIAL,
             price_per_license=price_per_license,
             discount=discount_for_current_plan,
-            billing_cycle_anchor=plan.billing_cycle_anchor,
-            tier=plan.tier,
-            status=CustomerPlan.FREE_TRIAL,
-            next_invoice_date=next_billing_cycle,
             user_group_billing_enabled=plan.user_group_billing_enabled,
+            create_audit_log=False,
         )
 
         ledger_entry = self.create_license_ledger_entry(
-            plan=new_plan,
+            plan=new_free_trial_plan,
             is_renewal=True,
             event_time=plan.billing_cycle_anchor,
             current_workplace_count=licenses_at_next_renewal,
             renewal_workplace_count=licenses_at_next_renewal,
         )
 
-        new_plan.invoiced_through = ledger_entry
-        new_plan.save(update_fields=["invoiced_through"])
+        new_free_trial_plan.invoiced_through = ledger_entry
+        new_free_trial_plan.save(update_fields=["invoiced_through"])
 
         if schedule == CustomerPlan.BILLING_SCHEDULE_ANNUAL:
             self.write_to_audit_log(
@@ -2336,7 +2425,7 @@ class BillingSession(ABC):
                 event_time=timezone_now(),
                 extra_data={
                     "monthly_plan_id": plan.id,
-                    "annual_plan_id": new_plan.id,
+                    "annual_plan_id": new_free_trial_plan.id,
                 },
             )
         else:
@@ -2345,7 +2434,7 @@ class BillingSession(ABC):
                 event_time=timezone_now(),
                 extra_data={
                     "annual_plan_id": plan.id,
-                    "monthly_plan_id": new_plan.id,
+                    "monthly_plan_id": new_free_trial_plan.id,
                 },
             )
 
@@ -2499,23 +2588,22 @@ class BillingSession(ABC):
                     plan.tier, CustomerPlan.BILLING_SCHEDULE_ANNUAL, plan.customer
                 )
 
-                new_plan = CustomerPlan.objects.create(
+                new_annual_plan = self.create_customer_plan(
                     customer=plan.customer,
-                    billing_schedule=CustomerPlan.BILLING_SCHEDULE_ANNUAL,
-                    automanage_licenses=plan.automanage_licenses,
-                    charge_automatically=plan.charge_automatically,
-                    price_per_license=price_per_license,
-                    discount=discount_for_current_plan,
-                    billing_cycle_anchor=next_billing_cycle,
                     tier=plan.tier,
-                    status=CustomerPlan.ACTIVE,
+                    anchor_date=next_billing_cycle,
+                    billing_schedule=CustomerPlan.BILLING_SCHEDULE_ANNUAL,
+                    charge_automatically=plan.charge_automatically,
+                    automanage_licenses=plan.automanage_licenses,
                     next_invoice_date=next_billing_cycle,
-                    invoiced_through=None,
                     invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
                     user_group_billing_enabled=plan.user_group_billing_enabled,
+                    price_per_license=price_per_license,
+                    discount=discount_for_current_plan,
+                    create_audit_log=False,
                 )
                 new_plan_ledger_entry = self.create_license_ledger_entry(
-                    plan=new_plan,
+                    plan=new_annual_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
@@ -2527,11 +2615,11 @@ class BillingSession(ABC):
                     event_time=event_time,
                     extra_data={
                         "monthly_plan_id": plan.id,
-                        "annual_plan_id": new_plan.id,
+                        "annual_plan_id": new_annual_plan.id,
                     },
                     background_update=True,
                 )
-                return new_plan, new_plan_ledger_entry
+                return new_annual_plan, new_plan_ledger_entry
 
             if plan.status == CustomerPlan.SWITCH_TO_MONTHLY_AT_END_OF_CYCLE:
                 self.validate_plan_license_management(plan, licenses_at_next_renewal)
@@ -2545,24 +2633,23 @@ class BillingSession(ABC):
                     plan.tier, CustomerPlan.BILLING_SCHEDULE_MONTHLY, plan.customer
                 )
 
-                new_plan = CustomerPlan.objects.create(
+                new_monthly_plan = self.create_customer_plan(
                     customer=plan.customer,
-                    billing_schedule=CustomerPlan.BILLING_SCHEDULE_MONTHLY,
-                    automanage_licenses=plan.automanage_licenses,
-                    charge_automatically=plan.charge_automatically,
-                    price_per_license=price_per_license,
-                    discount=discount_for_current_plan,
-                    billing_cycle_anchor=next_billing_cycle,
                     tier=plan.tier,
-                    status=CustomerPlan.ACTIVE,
+                    anchor_date=next_billing_cycle,
+                    billing_schedule=CustomerPlan.BILLING_SCHEDULE_MONTHLY,
+                    charge_automatically=plan.charge_automatically,
+                    automanage_licenses=plan.automanage_licenses,
                     next_invoice_date=next_billing_cycle,
-                    invoiced_through=None,
                     invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
                     user_group_billing_enabled=plan.user_group_billing_enabled,
+                    price_per_license=price_per_license,
+                    discount=discount_for_current_plan,
+                    create_audit_log=False,
                 )
 
                 new_plan_ledger_entry = self.create_license_ledger_entry(
-                    plan=new_plan,
+                    plan=new_monthly_plan,
                     is_renewal=True,
                     event_time=next_billing_cycle,
                     current_workplace_count=licenses_at_next_renewal,
@@ -2574,11 +2661,11 @@ class BillingSession(ABC):
                     event_time=event_time,
                     extra_data={
                         "annual_plan_id": plan.id,
-                        "monthly_plan_id": new_plan.id,
+                        "monthly_plan_id": new_monthly_plan.id,
                     },
                     background_update=True,
                 )
-                return new_plan, new_plan_ledger_entry
+                return new_monthly_plan, new_plan_ledger_entry
 
             if plan.status == CustomerPlan.DOWNGRADE_AT_END_OF_FREE_TRIAL:
                 self.downgrade_now_without_creating_additional_invoices(
@@ -3287,19 +3374,18 @@ class BillingSession(ABC):
 
         new_plan_billing_cycle_anchor = standardize_datetime_for_stripe(current_plan.end_date)
 
-        new_plan = CustomerPlan.objects.create(
+        new_tier_plan = self.create_customer_plan(
             customer=current_plan.customer,
-            status=CustomerPlan.ACTIVE,
-            automanage_licenses=current_plan.automanage_licenses,
+            tier=new_plan_tier,
+            anchor_date=new_plan_billing_cycle_anchor,
+            billing_schedule=current_plan.billing_schedule,
             charge_automatically=current_plan.charge_automatically,
+            automanage_licenses=current_plan.automanage_licenses,
+            next_invoice_date=new_plan_billing_cycle_anchor,
+            invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
+            user_group_billing_enabled=current_plan.user_group_billing_enabled,
             price_per_license=new_price_per_license,
             discount=discount_for_new_plan_tier,
-            billing_schedule=current_plan.billing_schedule,
-            tier=new_plan_tier,
-            billing_cycle_anchor=new_plan_billing_cycle_anchor,
-            invoicing_status=CustomerPlan.INVOICING_STATUS_INITIAL_INVOICE_TO_BE_SENT,
-            next_invoice_date=new_plan_billing_cycle_anchor,
-            user_group_billing_enabled=current_plan.user_group_billing_enabled,
         )
 
         current_plan_last_ledger = (
@@ -3314,12 +3400,12 @@ class BillingSession(ABC):
             new_plan_tier,
             old_plan_licenses_at_next_renewal,
         )
-        if not new_plan.automanage_licenses:  # nocoverage
+        if not new_tier_plan.automanage_licenses:  # nocoverage
             licenses_for_new_plan = max(old_plan_licenses_at_next_renewal, licenses_for_new_plan)
 
         assert licenses_for_new_plan is not None
         self.create_license_ledger_entry(
-            plan=new_plan,
+            plan=new_tier_plan,
             is_renewal=True,
             event_time=new_plan_billing_cycle_anchor,
             current_workplace_count=licenses_for_new_plan,
@@ -4065,25 +4151,23 @@ class BillingSession(ABC):
             return None
         customer = self.update_or_create_customer()
 
-        complimentary_access_plan_anchor = renewal_date
-        complimentary_access_plan_params = {
-            "billing_cycle_anchor": complimentary_access_plan_anchor,
-            "status": CustomerPlan.ACTIVE,
-            "tier": plan_tier,
+        complimentary_access_plan = self.create_customer_plan(
+            customer=customer,
+            tier=plan_tier,
+            anchor_date=renewal_date,
             # end_date and next_invoice_date should always be the same for these plans.
-            "end_date": end_date,
-            "next_invoice_date": end_date,
+            next_invoice_date=end_date,
+            end_date=end_date,
+            billing_schedule=CustomerPlan.BILLING_SCHEDULE_ANNUAL,
+            charge_automatically=False,
+            automanage_licenses=True,
             # The primary mechanism for preventing charges under this
             # plan is setting 'invoiced_through' to the ledger_entry below,
             # but setting a 0 price is useful defense in depth here.
-            "price_per_license": 0,
-            "billing_schedule": CustomerPlan.BILLING_SCHEDULE_ANNUAL,
-            "automanage_licenses": True,
-            "user_group_billing_enabled": False,
-        }
-        complimentary_access_plan = CustomerPlan.objects.create(
-            customer=customer,
-            **complimentary_access_plan_params,
+            price_per_license=0,
+            # Workplace user group billing is not applicable for
+            # complimentary access plans.
+            user_group_billing_enabled=False,
         )
 
         try:
@@ -4097,18 +4181,12 @@ class BillingSession(ABC):
         ledger_entry = self.create_license_ledger_entry(
             plan=complimentary_access_plan,
             is_renewal=True,
-            event_time=complimentary_access_plan_anchor,
+            event_time=renewal_date,
             current_workplace_count=billed_licenses,
             renewal_workplace_count=billed_licenses,
         )
         complimentary_access_plan.invoiced_through = ledger_entry
         complimentary_access_plan.save(update_fields=["invoiced_through"])
-        self.write_to_audit_log(
-            event_type=BillingSessionEventType.CUSTOMER_PLAN_CREATED,
-            event_time=complimentary_access_plan_anchor,
-            extra_data=complimentary_access_plan_params,
-        )
-
         self.do_change_plan_type(tier=CustomerPlan.TIER_SELF_HOSTED_LEGACY, is_sponsored=False)
 
     def add_customer_to_community_plan(self) -> None:
@@ -4125,22 +4203,21 @@ class BillingSession(ABC):
         # was already ended by the support path from which is this function is called.
         assert plan is None
         now = timezone_now()
-        community_plan_params = {
-            "billing_cycle_anchor": now,
-            "status": CustomerPlan.ACTIVE,
-            "tier": CustomerPlan.TIER_SELF_HOSTED_COMMUNITY,
+        community_plan = self.create_customer_plan(
+            customer=customer,
+            tier=CustomerPlan.TIER_SELF_HOSTED_COMMUNITY,
+            anchor_date=now,
+            billing_schedule=CustomerPlan.BILLING_SCHEDULE_ANNUAL,
+            charge_automatically=False,
+            automanage_licenses=True,
             # The primary mechanism for preventing charges under this
             # plan is setting a null `next_invoice_date`, but setting
             # a 0 price is useful defense in depth here.
-            "next_invoice_date": None,
-            "price_per_license": 0,
-            "billing_schedule": CustomerPlan.BILLING_SCHEDULE_ANNUAL,
-            "automanage_licenses": True,
-            "user_group_billing_enabled": False,
-        }
-        community_plan = CustomerPlan.objects.create(
-            customer=customer,
-            **community_plan_params,
+            next_invoice_date=None,
+            price_per_license=0,
+            # Workplace user group billing is not applicable for
+            # sponsored plans.
+            user_group_billing_enabled=False,
         )
 
         try:
@@ -4159,11 +4236,6 @@ class BillingSession(ABC):
         )
         community_plan.invoiced_through = ledger_entry
         community_plan.save(update_fields=["invoiced_through"])
-        self.write_to_audit_log(
-            event_type=BillingSessionEventType.CUSTOMER_PLAN_CREATED,
-            event_time=now,
-            extra_data=community_plan_params,
-        )
 
     def get_last_ledger_for_automanaged_plan_if_exists(
         self,
